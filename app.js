@@ -1,3 +1,7 @@
+if (window.alt1 && alt1.identifyAppUrl) {
+    alt1.identifyAppUrl("https://rssaltea.github.io/amascut-helper/index.html");
+}
+
 const chatReader = new ChatBoxReader();
 chatReader.find();
 
