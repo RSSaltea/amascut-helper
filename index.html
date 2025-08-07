@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Amascut Priority Helper</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="alt1lib.js"></script>
+    <script src="app.js" defer></script>
+</head>
+<body>
+    <div id="controls">
+        <button onclick="toggleVisibility()">Toggle Display</button>
+        <label for="fontSize">Text Size:</label>
+        <select id="fontSize" onchange="changeFontSize(this.value)">
+            <option value="18px">Small</option>
+            <option value="24px" selected>Medium</option>
+            <option value="32px">Large</option>
+            <option value="40px">Huge</option>
+        </select>
+    </div>
+
+    <div id="output" class="output-window draggable" style="display: block;">Waiting for Amascut...</div>
+</body>
+</html>
