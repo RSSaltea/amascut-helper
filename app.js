@@ -31,19 +31,16 @@ function capitalize(word) {
 
 setInterval(parseChat, 500);
 
-// Toggle display visibility
 function toggleVisibility() {
     const output = document.getElementById("output");
     output.style.display = (output.style.display === "none") ? "block" : "none";
 }
 
-// Change font size
 function changeFontSize(size) {
     const output = document.getElementById("output");
     output.style.fontSize = size;
 }
 
-// Enable dragging
 const dragElement = document.getElementById("output");
 let offsetX = 0, offsetY = 0, isDragging = false;
 
