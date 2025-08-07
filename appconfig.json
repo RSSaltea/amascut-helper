@@ -1,9 +1,16 @@
 {
-  "appname": "Amascut Helper",
+  "appName": "Amascut Helper",
   "description": "Helps with Amascuts mechanics",
-  "author": "Saltea",
-  "icon": "https://raw.githubusercontent.com/RSSaltea/amascut-helper/main/icon.png",
-  "main": "https://rssaltea.github.io/amascut-helper/index.html",
-  "category": "PvM",
-  "configversion": 1
+  "appUrl": "index.html",
+  "configUrl": "appconfig.json",
+  "iconUrl": "icon.png",
+  "defaultWidth": 500,
+  "defaultHeight": 380,
+  "minWidth": 250,
+  "minHeight": 180,
+  "maxWidth": 1000,
+  "maxHeight": 1000,
+  "requestHandlers": [],
+  "activators": [],
+  "permissions": "pixel,gamestate,overlay"
 }
