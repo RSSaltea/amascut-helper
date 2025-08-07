@@ -6,11 +6,11 @@ function parseChat() {
     for (const line of lines) {
         const text = line.message.toUpperCase();
 
-        if (text.includes("WEAK!")) {
+        if (text.includes("Weak")) {
             updateDisplay("range", "magic", "melee");
-        } else if (text.includes("GROVEL!")) {
+        } else if (text.includes("Grovel")) {
             updateDisplay("magic", "melee", "range");
-        } else if (text.includes("PATHETIC!")) {
+        } else if (text.includes("Pathetic")) {
             updateDisplay("melee", "range", "magic");
         }
     }
