@@ -1,23 +1,38 @@
+
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Amascut Priority Helper</title>
-    <link rel="stylesheet" href="style.css">
-    <script src="alt1lib.js"></script>
-    <script src="app.js" defer></script>
+	<style>
+	.attacks {
+		width:100%;
+	}
+	.attacks tr {
+	    background: linear-gradient(#534c44, #271d14, #190e03, #190e03, #241a11);
+	}
+	.attacks tr.selected { 
+		background: linear-gradient(#1a0b00, #11d10b);
+	}
+	.attacks td {
+		border: 1px solid #913200;
+		text-align: center
+	}
+	</style>
 </head>
-<body>
-    <div id="controls">
-        <button onclick="toggleVisibility()">Toggle Display</button>
-        <label for="fontSize">Text Size:</label>
-        <select id="fontSize" onchange="changeFontSize(this.value)">
-            <option value="18px">Small</option>
-            <option value="24px" selected>Medium</option>
-            <option value="32px">Large</option>
-            <option value="40px">Huge</option>
-        </select>
-    </div>
-
-    <div id="output" class="output-window draggable" style="display: block;">Waiting for Amascut...</div>
+<body class="nis">
+	<div id="phase" class="crty-header">Amascut Helper</div>
+	<table id="spec" class="attacks">
+		<tbody>
+			<tr class="selected">
+				<td>Pray Flick</td>
+			</tr>
+			<tr>
+				<td>Pray Flick</td>
+			</tr>
+			<tr>
+				<td>Pray Flick</td>
+			</tr>
+		</tbody>
+	</table>
+	<script src="./main.js"></script>
 </body>
 </html>
