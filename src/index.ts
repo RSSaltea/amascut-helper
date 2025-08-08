@@ -7,71 +7,95 @@ import "./css/style.css";
 import "./css/tooltipster.bundle.min.css";
 import "./css/tooltipster.css";
 
+// ——— In-App Logger ———
+const logDiv = document.createElement("div");
+logDiv.id = "logPanel";
+Object.assign(logDiv.style, {
+  position: "absolute",
+  bottom: "0",
+  left: "0",
+  width: "100%",
+  maxHeight: "120px",
+  overflowY: "auto",
+  background: "rgba(0,0,0,0.8)",
+  color: "#0f0",
+  fontSize: "11px",
+  lineHeight: "1.2",
+  padding: "4px",
+  zIndex: "9999",
+});
+document.body.appendChild(logDiv);
+function log(msg: string) {
+  logDiv.textContent += msg + "\n";
+}
+
 if (window.alt1) {
   alt1.identifyAppUrl("./appconfig.json");
 } else {
-  const addappurl = `alt1://addapp/${new URL(
-    "./appconfig.json",
-    document.location.href
-  ).href}`;
-  document.body.innerHTML = `Alt1 not detected, click <a href='${addappurl}'>here</a> to add this app.`;
+  const url = new URL("./appconfig.json", document.location.href).href;
+  document.body.innerHTML = `Alt1 not detected, click <a href="alt1://addapp/${url}">here</a> to add this app.`;
 }
+
 
 const reader = new ChatboxReader();
 
 reader.readargs = {
   colors: [
-    A1lib.mixColor(69, 131, 145),  // “Amascut, the Devourer:” color
-    A1lib.mixColor(153, 255, 153), // “Weak/Grovel/Pathetic” color
+    A1lib.mixColor(69, 131, 145),   // Amascut, the Devourer:
+    A1lib.mixColor(153, 255, 153),  // Weak / Grovel / Pathetic
   ],
 };
 
-const appColor = A1lib.mixColor(0, 255, 0);
-
-function showSelectedChat(chat) {
+function showSelected(chat) {
   try {
     alt1.overLayRect(
-      appColor,
-      chat.mainbox.rect.x,
-      chat.mainbox.rect.y,
-      chat.mainbox.rect.width,
-      chat.mainbox.rect.height,
-      2000,
-      5
+      A1lib.mixColor(0, 255, 0),
+      chat.mainbox.rect.x, chat.mainbox.rect.y,
+      chat.mainbox.rect.width, chat.mainbox.rect.height,
+      2000, 5
     );
   } catch {}
 }
 
 window.setTimeout(() => {
-  const handle = setInterval(() => {
+  const h = setInterval(() => {
     if (reader.pos === null) {
+      log("🔍 finding chatbox...");
       reader.find();
     } else {
-      clearInterval(handle);
+      clearInterval(h);
       reader.pos.mainbox = reader.pos.boxes[0];
-      showSelectedChat(reader.pos);
+      log("✅ chatbox found");
+      showSelected(reader.pos);
       setInterval(readChatbox, 600);
     }
   }, 1000);
 }, 50);
 
+// phrase → priority mapping
 const responses: Record<"weak"|"grovel"|"pathetic", string> = {
-  weak: "Range > Magic > Melee",
-  grovel: "Magic > Melee > Range",
+  weak:     "Range > Magic > Melee",
+  grovel:   "Magic > Melee > Range",
   pathetic: "Melee > Range > Magic",
 };
 
 function readChatbox() {
-  const lines = reader.read() || [];
-  if (!lines.length) return;
+  const segs = reader.read() || [];
+  if (!segs.length) {
+    log("⏳ no OCR segments");
+    return;
+  }
 
-  const full = lines.map(l => l.text).join(" ").toLowerCase();
-
+  const full = segs.map(s => s.text).join(" ").toLowerCase();
+  log(`📋 "${full}"`);
   if (full.includes("weak")) {
+    log("✅ matched weak");
     updateUI("weak");
   } else if (full.includes("grovel")) {
+    log("✅ matched grovel");
     updateUI("grovel");
   } else if (full.includes("pathetic")) {
+    log("✅ matched pathetic");
     updateUI("pathetic");
   }
 }
@@ -84,4 +108,5 @@ function updateUI(key: "weak"|"grovel"|"pathetic") {
     if (cell) cell.textContent = order[i] || "";
     row.classList.toggle("selected", i === 0);
   });
+  log(`🎯 UI set to: ${responses[key]}`);
 }
