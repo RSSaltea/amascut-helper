@@ -16,7 +16,7 @@ const appColor = A1lib.mixColor(0, 255, 0);
 const reader = new ChatboxReader();
 
 reader.readargs = {
-    colors: [A1lib.mixColor(255, 255, 255)], // Adjust based on Amascut's actual text color
+    colors: [A1lib.mixColor(255, 255, 255)], // Adjust this color if Amascut uses different
 };
 
 const responses = {
@@ -64,8 +64,12 @@ function readChatbox() {
 }
 
 function updateUI(key: "weak" | "grovel" | "pathetic") {
-    const output = document.getElementById("priority-display");
-    if (output) {
-        output.innerText = responses[key];
-    }
+    const priority = responses[key].split(" > ");
+    const rows = document.querySelectorAll("#spec tr");
+
+    rows.forEach((row, index) => {
+        const cell = row.querySelector("td");
+        if (cell) cell.textContent = priority[index] || "";
+        row.classList.toggle("selected", index === 0);
+    });
 }
