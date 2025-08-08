@@ -1,7 +1,6 @@
 import * as A1lib from "alt1";
 import ChatboxReader from "alt1/chatbox";
 
-import "./index.html";
 import "./appconfig.json";
 import "./css/nis.css";
 import "./css/style.css";
