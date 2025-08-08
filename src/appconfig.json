@@ -1,6 +1,6 @@
 {
   "appName": "Amascut Helper",
-  "description": "Helps with Amascuts mechanics",
+  "description": "Helps with mechanics of Amascut.",
   "appUrl": "./index.html",
   "configUrl": "./appconfig.json",
   "iconUrl": "./icon.png",
