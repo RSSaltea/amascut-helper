@@ -7,35 +7,12 @@ import "./css/style.css";
 import "./css/tooltipster.bundle.min.css";
 import "./css/tooltipster.css";
 
-// ——— In-App Logger ———
-const logDiv = document.createElement("div");
-logDiv.id = "logPanel";
-Object.assign(logDiv.style, {
-  position: "absolute",
-  bottom: "0",
-  left: "0",
-  width: "100%",
-  maxHeight: "120px",
-  overflowY: "auto",
-  background: "rgba(0,0,0,0.8)",
-  color: "#0f0",
-  fontSize: "11px",
-  lineHeight: "1.2",
-  padding: "4px",
-  zIndex: "9999",
-});
-document.body.appendChild(logDiv);
-function log(msg: string) {
-  logDiv.textContent += msg + "\n";
-}
-
 if (window.alt1) {
   alt1.identifyAppUrl("./appconfig.json");
 } else {
   const url = new URL("./appconfig.json", document.location.href).href;
   document.body.innerHTML = `Alt1 not detected, click <a href="alt1://addapp/${url}">here</a> to add this app.`;
 }
-
 
 const reader = new ChatboxReader();
 
@@ -78,6 +55,8 @@ const responses: Record<"weak"|"grovel"|"pathetic", string> = {
   grovel:   "Magic > Melee > Range",
   pathetic: "Melee > Range > Magic",
 };
+
+a1lib.identifyApp("appconfig.json");
 
 function readChatbox() {
   const segs = reader.read() || [];
