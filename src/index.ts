@@ -7,103 +7,122 @@ import "./css/style.css";
 import "./css/tooltipster.bundle.min.css";
 import "./css/tooltipster.css";
 
-// Identify Alt1 app
+// ———————— In-App Logger ————————
+// create a <div> at bottom of screen to capture logs
+const logContainer = document.createElement("div");
+logContainer.id = "log";
+Object.assign(logContainer.style, {
+  position: "absolute",
+  bottom: "0",
+  left: "0",
+  width: "100%",
+  maxHeight: "150px",
+  overflowY: "auto",
+  background: "rgba(0,0,0,0.7)",
+  color: "white",
+  fontSize: "12px",
+  padding: "5px",
+  whiteSpace: "pre-wrap",
+  zIndex: "9999",
+});
+document.body.appendChild(logContainer);
+function log(msg: string) {
+  logContainer.textContent += msg + "\n";
+}
+// ————————————————————————————
+
 if (window.alt1) {
-    alt1.identifyAppUrl("./appconfig.json");
+  alt1.identifyAppUrl("./appconfig.json");
 } else {
-    const addappurl = `alt1://addapp/${new URL("./appconfig.json", document.location.href).href}`;
-    document.body.innerHTML = `Alt1 not detected, click <a href='${addappurl}'>here</a> to add this app to Alt1.`;
+  const addappurl = `alt1://addapp/${new URL(
+    "./appconfig.json",
+    document.location.href
+  ).href}`;
+  document.body.innerHTML = `Alt1 not detected, click <a href='${addappurl}'>here</a> to add this app to Alt1.`;
 }
 
-// Setup ChatboxReader
 const appColor = A1lib.mixColor(0, 255, 0);
 const reader = new ChatboxReader();
 
-// Use the correct color for Amascut's dialogue: light green
+// only the exact light-green used by Amascut’s chat
 reader.readargs = {
-    colors: [A1lib.mixColor(153, 255, 153)],
+  colors: [A1lib.mixColor(153, 255, 153)],
 };
 
-// Mapping Amascut phrases to combat priority
 const responses: Record<string, string> = {
-    weak: "Range > Magic > Melee",
-    grovel: "Magic > Melee > Range",
-    pathetic: "Melee > Range > Magic",
+  weak: "Range > Magic > Melee",
+  grovel: "Magic > Melee > Range",
+  pathetic: "Melee > Range > Magic",
 };
 
-// Optional: draw overlay rectangle to show chatbox found
 function showSelectedChat(chat) {
-    try {
-        alt1.overLayRect(
-            appColor,
-            chat.mainbox.rect.x,
-            chat.mainbox.rect.y,
-            chat.mainbox.rect.width,
-            chat.mainbox.rect.height,
-            2000,
-            5
-        );
-    } catch (e) {
-        console.warn("Overlay failed:", e);
-    }
+  try {
+    alt1.overLayRect(
+      appColor,
+      chat.mainbox.rect.x,
+      chat.mainbox.rect.y,
+      chat.mainbox.rect.width,
+      chat.mainbox.rect.height,
+      2000,
+      5
+    );
+  } catch (e) {
+    log("Overlay failed: " + e);
+  }
 }
 
-// Begin trying to find the chatbox
 window.setTimeout(() => {
-    const findChat = setInterval(() => {
-        if (reader.pos === null) {
-            console.log("Searching for chatbox...");
-            reader.find();
-        } else {
-            clearInterval(findChat);
-            reader.pos.mainbox = reader.pos.boxes[0];
-            console.log("Chatbox found:", reader.pos);
-            showSelectedChat(reader.pos);
-            setInterval(readChatbox, 600);
-        }
-    }, 1000);
+  const findChat = setInterval(() => {
+    if (reader.pos === null) {
+      log("🔍 searching for chatbox…");
+      reader.find();
+    } else {
+      clearInterval(findChat);
+      reader.pos.mainbox = reader.pos.boxes[0];
+      log("✅ chatbox found at " +
+        JSON.stringify(reader.pos.mainbox.rect));
+      showSelectedChat(reader.pos);
+      setInterval(readChatbox, 600);
+    }
+  }, 1000);
 }, 50);
 
-// Periodically read from the chatbox and update UI
 function readChatbox() {
-    const lines = reader.read() || [];
+  const lines = reader.read() || [];
+  if (!lines.length) {
+    log("⏳ no lines read");
+    return;
+  }
+  for (const line of lines) {
+    const text = line.text.toLowerCase();
+    const { r, g, b } = A1lib.decodeColor(line.color);
+    log(`📜 "${line.text}" (rgb ${r},${g},${b})`);
 
-    if (!lines.length) {
-        console.log("No lines found.");
-        return;
+    if (text.includes("weak")) {
+      log("👉 matched: weak");
+      updateUI("weak");
+      return;
     }
-
-    for (const line of lines) {
-        const text = line.text.toLowerCase();
-        const color = A1lib.decodeColor(line.color);
-        console.log(`Line: "${line.text}" | RGB: (${color.r}, ${color.g}, ${color.b})`);
-
-        if (text.includes("weak")) {
-            console.log("Matched: weak");
-            updateUI("weak");
-            return;
-        }
-        if (text.includes("grovel")) {
-            console.log("Matched: grovel");
-            updateUI("grovel");
-            return;
-        }
-        if (text.includes("pathetic")) {
-            console.log("Matched: pathetic");
-            updateUI("pathetic");
-            return;
-        }
+    if (text.includes("grovel")) {
+      log("👉 matched: grovel");
+      updateUI("grovel");
+      return;
     }
+    if (text.includes("pathetic")) {
+      log("👉 matched: pathetic");
+      updateUI("pathetic");
+      return;
+    }
+  }
 }
 
-// Update the UI with the correct combat order
 function updateUI(key: "weak" | "grovel" | "pathetic") {
-    const priority = responses[key].split(" > ");
-    const rows = document.querySelectorAll("#spec tr");
-
-    rows.forEach((row, index) => {
-        const cell = row.querySelector("td");
-        if (cell) cell.textContent = priority[index] || "";
-        row.classList.toggle("selected", index === 0);
-    });
+  const priority = responses[key].split(" > ");
+  const rows = document.querySelectorAll("#spec tr");
+  rows.forEach((row, i) => {
+    const cell = row.querySelector("td");
+    if (cell) cell.textContent = priority[i] || "";
+    row.classList.toggle("selected", i === 0);
+  });
+  log(`🎯 UI updated for "${key}" → ${responses[key]}`);
 }
