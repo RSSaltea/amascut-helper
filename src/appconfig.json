@@ -1,9 +1,9 @@
 {
   "appName": "Amascut Helper",
   "description": "Helps with Amascuts mechanics",
-  "appUrl": "index.html",
-  "configUrl": "appconfig.json",
-  "iconUrl": "icon.png",
+  "appUrl": "./index.html",
+  "configUrl": "./appconfig.json",
+  "iconUrl": "./icon.png",
 	"defaultWidth": 160,
 	"defaultHeight": 188,
 	"minWidth": 160,
