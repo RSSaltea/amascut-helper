@@ -7,30 +7,6 @@ import "./css/style.css";
 import "./css/tooltipster.bundle.min.css";
 import "./css/tooltipster.css";
 
-// ———————— In-App Logger ————————
-// create a <div> at bottom of screen to capture logs
-const logContainer = document.createElement("div");
-logContainer.id = "log";
-Object.assign(logContainer.style, {
-  position: "absolute",
-  bottom: "0",
-  left: "0",
-  width: "100%",
-  maxHeight: "150px",
-  overflowY: "auto",
-  background: "rgba(0,0,0,0.7)",
-  color: "white",
-  fontSize: "12px",
-  padding: "5px",
-  whiteSpace: "pre-wrap",
-  zIndex: "9999",
-});
-document.body.appendChild(logContainer);
-function log(msg: string) {
-  logContainer.textContent += msg + "\n";
-}
-// ————————————————————————————
-
 if (window.alt1) {
   alt1.identifyAppUrl("./appconfig.json");
 } else {
@@ -38,22 +14,19 @@ if (window.alt1) {
     "./appconfig.json",
     document.location.href
   ).href}`;
-  document.body.innerHTML = `Alt1 not detected, click <a href='${addappurl}'>here</a> to add this app to Alt1.`;
+  document.body.innerHTML = `Alt1 not detected, click <a href='${addappurl}'>here</a> to add this app.`;
 }
 
-const appColor = A1lib.mixColor(0, 255, 0);
 const reader = new ChatboxReader();
 
-// only the exact light-green used by Amascut’s chat
 reader.readargs = {
-  colors: [A1lib.mixColor(153, 255, 153)],
+  colors: [
+    A1lib.mixColor(69, 131, 145),  // “Amascut, the Devourer:” color
+    A1lib.mixColor(153, 255, 153), // “Weak/Grovel/Pathetic” color
+  ],
 };
 
-const responses: Record<string, string> = {
-  weak: "Range > Magic > Melee",
-  grovel: "Magic > Melee > Range",
-  pathetic: "Melee > Range > Magic",
-};
+const appColor = A1lib.mixColor(0, 255, 0);
 
 function showSelectedChat(chat) {
   try {
@@ -66,63 +39,49 @@ function showSelectedChat(chat) {
       2000,
       5
     );
-  } catch (e) {
-    log("Overlay failed: " + e);
-  }
+  } catch {}
 }
 
 window.setTimeout(() => {
-  const findChat = setInterval(() => {
+  const handle = setInterval(() => {
     if (reader.pos === null) {
-      log("🔍 searching for chatbox…");
       reader.find();
     } else {
-      clearInterval(findChat);
+      clearInterval(handle);
       reader.pos.mainbox = reader.pos.boxes[0];
-      log("✅ chatbox found at " +
-        JSON.stringify(reader.pos.mainbox.rect));
       showSelectedChat(reader.pos);
       setInterval(readChatbox, 600);
     }
   }, 1000);
 }, 50);
 
+const responses: Record<"weak"|"grovel"|"pathetic", string> = {
+  weak: "Range > Magic > Melee",
+  grovel: "Magic > Melee > Range",
+  pathetic: "Melee > Range > Magic",
+};
+
 function readChatbox() {
   const lines = reader.read() || [];
-  if (!lines.length) {
-    log("⏳ no lines read");
-    return;
-  }
-  for (const line of lines) {
-    const text = line.text.toLowerCase();
-    const { r, g, b } = A1lib.decodeColor(line.color);
-    log(`📜 "${line.text}" (rgb ${r},${g},${b})`);
+  if (!lines.length) return;
 
-    if (text.includes("weak")) {
-      log("👉 matched: weak");
-      updateUI("weak");
-      return;
-    }
-    if (text.includes("grovel")) {
-      log("👉 matched: grovel");
-      updateUI("grovel");
-      return;
-    }
-    if (text.includes("pathetic")) {
-      log("👉 matched: pathetic");
-      updateUI("pathetic");
-      return;
-    }
+  const full = lines.map(l => l.text).join(" ").toLowerCase();
+
+  if (full.includes("weak")) {
+    updateUI("weak");
+  } else if (full.includes("grovel")) {
+    updateUI("grovel");
+  } else if (full.includes("pathetic")) {
+    updateUI("pathetic");
   }
 }
 
-function updateUI(key: "weak" | "grovel" | "pathetic") {
-  const priority = responses[key].split(" > ");
+function updateUI(key: "weak"|"grovel"|"pathetic") {
+  const order = responses[key].split(" > ");
   const rows = document.querySelectorAll("#spec tr");
   rows.forEach((row, i) => {
     const cell = row.querySelector("td");
-    if (cell) cell.textContent = priority[i] || "";
+    if (cell) cell.textContent = order[i] || "";
     row.classList.toggle("selected", i === 0);
   });
-  log(`🎯 UI updated for "${key}" → ${responses[key]}`);
 }
