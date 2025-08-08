@@ -3,7 +3,10 @@ import ChatboxReader from "alt1/chatbox";
 
 import "./index.html";
 import "./appconfig.json";
+import "./css/nis.css";
 import "./css/style.css";
+import "./css/tooltipster.bundle.min.css";
+import "./css/tooltipster.css";
 
 if (window.alt1) {
     alt1.identifyAppUrl("./appconfig.json");
