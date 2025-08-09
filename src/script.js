@@ -82,17 +82,17 @@ function readChatbox() {
     log("⚠️ reader.read() failed; check Alt1 Pixel permission.");
     return;
   }
-  if (!segs.length) return;
+  if (!segs.length) {
+    return;
+  }
 
-  // Debug: log text + RGB
-  segs.forEach(s => {
-    if (!s.text) return;
-    const c = A1lib.decodeColor(s.color);
-    log(`OCR: "${s.text}" color=(${c.r},${c.g},${c.b})`);
-  });
+  const texts = segs.map(s => (s.text || "").trim()).filter(Boolean);
+  if (!texts.length) return;
 
-  const full = segs.map(s => (s.text || "").trim()).join(" ").toLowerCase();
-  if (!full) return;
+
+  log("segs: " + JSON.stringify(texts.slice(-6)));
+
+  const full = texts.join(" ").toLowerCase();
 
   let key = null;
   if (full.includes("weak")) key = "weak";
