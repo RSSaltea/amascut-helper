@@ -11,9 +11,9 @@ function log(msg) {
 }
 
 if (window.alt1) {
-  alt1.identifyAppUrl("appconfig.json");
+  alt1.identifyAppUrl("./appconfig.json");
 } else {
-  const url = new URL("appconfig.json", document.location.href).href;
+  const url = new URL("./appconfig.json", document.location.href).href;
   document.body.innerHTML =
     Alt1 not detected, click <a href="alt1://addapp/${url}">here</a> to add this app.;
 }
