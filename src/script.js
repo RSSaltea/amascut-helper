@@ -1,4 +1,4 @@
-A1lib.identifyApp("appconfig.json");
+A1lib.identifyApp("./appconfig.json");
 
 function log(msg) {
   console.log(msg);
