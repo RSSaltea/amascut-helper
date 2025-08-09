@@ -1,11 +1,7 @@
-/* ------------------------------------------------
- * Amascut Helper (no imports; works with your HTML)
- * ------------------------------------------------ */
-
 A1lib.identifyApp("appconfig.json");
 
 function log(msg) {
-  if (typeof SETTINGS !== "undefined" && !SETTINGS.logs) return; // safe if SETTINGS not ready yet
+  if (typeof SETTINGS !== "undefined" && !SETTINGS.logs) return;
   try {
     console.log(msg);
     const out = document.getElementById("output");
@@ -17,8 +13,6 @@ function log(msg) {
   } catch {}
 }
 
-
-// --------- Alt1 detection ----------
 if (window.alt1) {
   alt1.identifyAppUrl("./appconfig.json");
 } else {
@@ -26,11 +20,9 @@ if (window.alt1) {
   document.body.innerHTML = `Alt1 not detected, click <a href="alt1://addapp/${url}">here</a> to add this app.`;
 }
 
-// --------- De-dupe state ----------
 const seenLineIds = new Set();
-const seenLineQueue = []; // FIFO to keep memory small
+const seenLineQueue = [];
 
-// --------- Countdown management ----------
 let countdownTimers = [];
 let resetTimerId = null;
 
@@ -74,7 +66,6 @@ function startCountdown(label, seconds) {
     if (remaining > 1) {
       showSingleRow(`${label} (${remaining})`);
     } else if (remaining === 1) {
-      // show ALL CAPS without "(1)"
       showSingleRow(label.toUpperCase());
     }
   }
@@ -91,7 +82,6 @@ function startCountdown(label, seconds) {
   }, 1000);
 }
 
-// --------- Chat reader ----------
 const reader = new Chatbox.default();
 const NAME_RGB = [69, 131, 145];
 const TEXT_RGB = [153, 255, 153];
@@ -114,7 +104,6 @@ reader.readargs = {
   backwards: true
 };
 
-// --------- UI helpers ----------
 const RESPONSES = {
   weak:     "Range > Magic > Melee",
   grovel:   "Magic > Melee > Range",
@@ -136,10 +125,8 @@ function updateUI(key) {
     const cell = row.querySelector("td");
     if (cell) cell.textContent = role;
 
-    // clear any callout styling
     row.classList.remove("callout", "flash");
 
-    // color + emphasis
     row.classList.remove("role-range", "role-magic", "role-melee");
     if (role === "Range") row.classList.add("role-range");
     else if (role === "Magic") row.classList.add("role-magic");
@@ -176,7 +163,6 @@ function resetUI() {
   }
 }
 
-// --------- Utilities ----------
 function firstNonWhiteColor(seg) {
   if (!seg.fragments) return null;
   for (const f of seg.fragments) {
@@ -185,15 +171,11 @@ function firstNonWhiteColor(seg) {
   return null;
 }
 
-// ==============================
-// Settings (UI + persistence)
-// ==============================
-
 const SETTINGS_DEFAULT = {
-  role: "Base",         // "DPS" | "Base"
-  bend: "Voke",         // "Voke" | "Immort"
-  scarabs: "Barricade", // "Barricade" | "Dive"
-  logs: false           // true = show logs, false = hide
+  role: "Base",         
+  bend: "Voke",         
+  scarabs: "Barricade", 
+  logs: false           
 };
 
 
@@ -212,7 +194,6 @@ function saveSettings(s) {
 
 let SETTINGS = loadSettings();
 
-// inject minimal UI (cog + panel) without touching your HTML/CSS files
 (function injectSettingsUI(){
   const style = document.createElement("style");
   style.textContent = `
@@ -270,7 +251,6 @@ panel.querySelector("#ah-bend").value = SETTINGS.bend;
 panel.querySelector("#ah-scarabs").value = SETTINGS.scarabs;
 panel.querySelector("#ah-logs").checked = SETTINGS.logs;
 
-  // events
   cog.addEventListener("click", () => {
     panel.style.display = panel.style.display === "none" ? "block" : "none";
   });
@@ -283,7 +263,7 @@ function updateFromUI(){
 
   if (!SETTINGS.logs) {
     const out = document.getElementById("output");
-    if (out) out.innerHTML = ""; // clear logs immediately
+    if (out) out.innerHTML = "";
   }
 
   log(`⚙️ Settings → role=${SETTINGS.role}, bend=${SETTINGS.bend}, scarabs=${SETTINGS.scarabs}, logs=${SETTINGS.logs}`);
@@ -292,7 +272,6 @@ function updateFromUI(){
   panel.addEventListener("change", updateFromUI);
 })();
 
-// --------- Debouncer ----------
 let lastSig = "";
 let lastAt = 0;
 
@@ -307,8 +286,8 @@ function onAmascutLine(full, lineId) {
     }
   }
 
-  const raw = full;               // preserve case
-  const low = full.toLowerCase(); // helper for insensitive checks
+  const raw = full;               
+  const low = full.toLowerCase(); 
 
   let key = null;
   if (raw.includes("Grovel")) key = "grovel";
@@ -324,23 +303,14 @@ function onAmascutLine(full, lineId) {
 
   if (!key) return;
 
-  // light debouncer by content signature
   const now = Date.now();
   const sig = key + "|" + raw.slice(-80);
   if (sig === lastSig && now - lastAt < 1200) return;
   lastSig = sig;
   lastAt = now;
 
-  // ==============================
-  // Settings-driven behavior
-  // ==============================
   if (key === "tear") {
-    // Decide first step (Bend the knee phase)
-    // - DPS + Voke       -> Voke Reflect (countdown)
-    // - DPS + Immort     -> do nothing
-    // - Base + Immort    -> Immortality (countdown)
-    // - Base + Voke      -> do nothing
-    let first = "none"; // "voke" | "immort" | "none"
+    let first = "none"; 
     if (SETTINGS.role === "DPS" && SETTINGS.bend === "Voke") first = "voke";
     else if (SETTINGS.role === "Base" && SETTINGS.bend === "Immort") first = "immort";
 
@@ -350,14 +320,13 @@ function onAmascutLine(full, lineId) {
       startCountdown("Voke → Reflect", 8);
     } else if (first === "immort") {
       startCountdown("Immortality", 8);
-    } // else none
+    } 
 
-    // Scarabs follow after the first phase completes (or after 2s if none)
     const scarabDelayMs = (firstDuration ? (firstDuration + 2) : 2) * 1000;
 
     countdownTimers.push(setTimeout(() => {
       if (SETTINGS.scarabs === "Barricade") {
-        // Base + Barricade → 18s, else 10s
+        
         const barricadeTime = (SETTINGS.role === "Base") ? 18 : 10;
         startCountdown("Barricade", barricadeTime);
         countdownTimers.push(setTimeout(() => {
@@ -365,7 +334,7 @@ function onAmascutLine(full, lineId) {
           log("↺ UI reset");
         }, barricadeTime * 1000));
       } else {
-        // Dive: immediate, no countdown, reset after 8s
+
         showSingleRow("Dive");
         countdownTimers.push(setTimeout(() => {
           resetUI();
@@ -375,7 +344,7 @@ function onAmascutLine(full, lineId) {
     }, scarabDelayMs));
 
   } else if (key === "barricadeHeart") {
-    // Tumeken's heart delivered → Barricade 12s (independent)
+
     startCountdown("Barricade", 12);
     countdownTimers.push(setTimeout(() => {
       resetUI();
@@ -383,7 +352,7 @@ function onAmascutLine(full, lineId) {
     }, 12000));
 
   } else if (key === "notSubjugated") {
-    // Instruction line, reset after 8s (independent)
+
     showSingleRow("Magic Prayer → Devo → Reflect → Melee Prayer");
     setTimeout(() => {
       resetUI();
@@ -419,9 +388,7 @@ function onAmascutLine(full, lineId) {
     }, 6000);
 
   } else {
-    // Grovel/Weak/Pathetic depend on Role:
-    // - DPS  -> do nothing
-    // - Base -> normal 3-row behavior
+
     if (SETTINGS.role === "Base") {
       cancelCountdowns();
       updateUI(key);
@@ -432,7 +399,6 @@ function onAmascutLine(full, lineId) {
 }
 
 
-// --------- Read loop ----------
 function readChatbox() {
   let segs = [];
   try { segs = reader.read() || []; }
@@ -469,7 +435,6 @@ function readChatbox() {
   }
 }
 
-// --------- Boot ----------
 resetUI();
 
 setTimeout(() => {
