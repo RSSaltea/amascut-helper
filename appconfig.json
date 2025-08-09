@@ -4,7 +4,7 @@
   "appUrl": "./index.html",
   "version": "1.0.4",
   "configUrl": "./appconfig.json",
-  "iconUrl": "./icon.png",
+  "iconUrl": "./src/icon.png",
   "defaultWidth": 160,
   "defaultHeight": 188,
   "minWidth": 160,
