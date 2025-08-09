@@ -21,11 +21,6 @@ if (window.alt1) {
     `Alt1 not detected, click <a href="alt1://addapp/${url}">here</a> to add this app.`;
 }
 
-// … later, wherever you have catch blocks:
-} catch (e: any) {
-  log("⚠️ " + (e && e.message ? e.message : e));
-}
-
 // Import images for image detection
 import GrovelImg from "./Grovel.png";
 import PatheticImg from "./Pathetic.png";
@@ -82,7 +77,8 @@ function showSelected(chat: any) {
             chat.mainbox.rect.width, chat.mainbox.rect.height,
             2000, 5
         );
-    } catch { }
+    } catch (e: any) {
+  log("⚠️ " + (e && e.message ? e.message : e));
 }
 
 // Update UI table
