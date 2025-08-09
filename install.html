@@ -1,0 +1,22 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>Install Amascut Helper for Alt1</title>
+<style>body{font-family:system-ui;margin:2rem;line-height:1.5}</style>
+<h1>Launching Alt1…</h1>
+<p>If nothing happens in a couple seconds, <a id="manual" href="#">click here</a> or follow the manual steps below.</p>
+<script>
+  const target = 'alt1://addapp/https://rssaltea.github.io/amascut-helper/appconfig.json';
+  document.getElementById('manual').href = target;
+  // Try to open Alt1 immediately
+  window.location.href = target;
+  // Optionally reveal fallback after a moment
+  setTimeout(() => {
+    document.body.insertAdjacentHTML('beforeend', `
+      <h2>Manual install</h2>
+      <ol>
+        <li>Open Alt1 → ⚙️ → <b>Add from URL</b></li>
+        <li>Paste: <code>https://rssaltea.github.io/amascut-helper/appconfig.json</code></li>
+      </ol>
+    `);
+  }, 1500);
+</script>
