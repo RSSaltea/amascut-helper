@@ -5,7 +5,7 @@
 A1lib.identifyApp("appconfig.json");
 
 function log(msg) {
-  if (!SETTINGS.logs) return; // skip if off
+  if (typeof SETTINGS !== "undefined" && !SETTINGS.logs) return; // safe if SETTINGS not ready yet
   try {
     console.log(msg);
     const out = document.getElementById("output");
@@ -16,6 +16,7 @@ function log(msg) {
     while (out.childElementCount > 60) out.removeChild(out.lastChild);
   } catch {}
 }
+
 
 // --------- Alt1 detection ----------
 if (window.alt1) {
@@ -309,7 +310,6 @@ function onAmascutLine(full, lineId) {
   const raw = full;               // preserve case
   const low = full.toLowerCase(); // helper for insensitive checks
 
-  // ---- key detection (Weak is case-sensitive) ----
   let key = null;
   if (raw.includes("Grovel")) key = "grovel";
   else if (/\bWeak\b/.test(raw)) key = "weak";
@@ -317,6 +317,11 @@ function onAmascutLine(full, lineId) {
   else if (low.includes("tear them apart")) key = "tear";
   else if (low.includes("tumeken's heart delivered")) key = "barricadeHeart";
   else if (raw.includes("I WILL NOT BE SUBJUGATED")) key = "notSubjugated";
+  else if (raw.includes("Crondis... It should have never come to this")) key = "crondis";
+  else if (raw.includes("I'm sorry, Apmeken")) key = "apmeken";
+  else if (raw.includes("Forgive me, Het")) key = "het";
+  else if (raw.includes("Scabaras...")) key = "scabaras";
+
   if (!key) return;
 
   // light debouncer by content signature
@@ -347,27 +352,27 @@ function onAmascutLine(full, lineId) {
       startCountdown("Immortality", 8);
     } // else none
 
-// Scarabs follow after the first phase completes (or after 2s if none)
-const scarabDelayMs = (firstDuration ? (firstDuration + 2) : 2) * 1000;
+    // Scarabs follow after the first phase completes (or after 2s if none)
+    const scarabDelayMs = (firstDuration ? (firstDuration + 2) : 2) * 1000;
 
-countdownTimers.push(setTimeout(() => {
-  if (SETTINGS.scarabs === "Barricade") {
-    // Base + Barricade → 18s, else 10s
-    const barricadeTime = (SETTINGS.role === "Base") ? 18 : 10;
-    startCountdown("Barricade", barricadeTime);
     countdownTimers.push(setTimeout(() => {
-      resetUI();
-      log("↺ UI reset");
-    }, barricadeTime * 1000));
-  } else {
-    // Dive: immediate, no countdown, reset after 8s
-    showSingleRow("Dive");
-    countdownTimers.push(setTimeout(() => {
-      resetUI();
-      log("↺ UI reset");
-    }, 8000));
-  }
-}, scarabDelayMs));
+      if (SETTINGS.scarabs === "Barricade") {
+        // Base + Barricade → 18s, else 10s
+        const barricadeTime = (SETTINGS.role === "Base") ? 18 : 10;
+        startCountdown("Barricade", barricadeTime);
+        countdownTimers.push(setTimeout(() => {
+          resetUI();
+          log("↺ UI reset");
+        }, barricadeTime * 1000));
+      } else {
+        // Dive: immediate, no countdown, reset after 8s
+        showSingleRow("Dive");
+        countdownTimers.push(setTimeout(() => {
+          resetUI();
+          log("↺ UI reset");
+        }, 8000));
+      }
+    }, scarabDelayMs));
 
   } else if (key === "barricadeHeart") {
     // Tumeken's heart delivered → Barricade 12s (independent)
@@ -385,6 +390,34 @@ countdownTimers.push(setTimeout(() => {
       log("↺ UI reset");
     }, 8000);
 
+  } else if (key === "crondis") {
+    showSingleRow("Crondis (SE)");
+    setTimeout(() => {
+      resetUI();
+      log("↺ UI reset");
+    }, 6000);
+
+  } else if (key === "apmeken") {
+    showSingleRow("Apmeken (NW)");
+    setTimeout(() => {
+      resetUI();
+      log("↺ UI reset");
+    }, 6000);
+
+  } else if (key === "het") {
+    showSingleRow("Het (SW)");
+    setTimeout(() => {
+      resetUI();
+      log("↺ UI reset");
+    }, 6000);
+
+  } else if (key === "scabaras") {
+    showSingleRow("Scabaras (NE)");
+    setTimeout(() => {
+      resetUI();
+      log("↺ UI reset");
+    }, 6000);
+
   } else {
     // Grovel/Weak/Pathetic depend on Role:
     // - DPS  -> do nothing
@@ -397,6 +430,7 @@ countdownTimers.push(setTimeout(() => {
     }
   }
 }
+
 
 // --------- Read loop ----------
 function readChatbox() {
