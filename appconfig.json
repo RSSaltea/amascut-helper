@@ -2,7 +2,7 @@
   "appName": "Amascut Helper",
   "description": "Helps with mechanics of Amascut.",
   "appUrl": "./index.html",
-  "version": "1.0.2",
+  "version": "1.0.5",
   "configUrl": "./src/appconfig.json",
   "iconUrl": "./src/icon.png",
   "defaultWidth": 160,
