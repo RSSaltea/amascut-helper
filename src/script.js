@@ -4,8 +4,9 @@
 
 A1lib.identifyApp("appconfig.json");
 
-// --------- tiny logger ----------
 function log(msg) {
+  if (!SETTINGS.logs) return; // ⬅️ respect logs setting
+
   try {
     console.log(msg);
     const out = document.getElementById("output");
@@ -192,7 +193,9 @@ const SETTINGS_DEFAULT = {
   role: "Base",         // "DPS" | "Base"
   bend: "Voke",         // "Voke" | "Immort"
   scarabs: "Barricade", // "Barricade" | "Dive"
+  logs: false           // true = show logs, false = hide
 };
+
 
 function loadSettings() {
   try {
@@ -233,47 +236,52 @@ let SETTINGS = loadSettings();
 
   const panel = document.createElement("div");
   panel.className = "ah-panel";
-  panel.innerHTML = `
-    <div class="ah-row">
-      <label>Role</label>
-      <select id="ah-role">
-        <option value="DPS">DPS</option>
-        <option value="Base">Base</option>
-      </select>
-    </div>
-    <div class="ah-row">
-      <label><span class="ah-tip" title="How do you plan to deal with Bend the knee mechanic?">Bend the knee</span></label>
-      <select id="ah-bend">
-        <option value="Voke">Voke</option>
-        <option value="Immort">Immort</option>
-      </select>
-    </div>
-    <div class="ah-row">
-      <label><span class="ah-tip" title="How do you plan to deal with Scarabs?">Scarabs</span></label>
-      <select id="ah-scarabs">
-        <option value="Barricade">Barricade</option>
-        <option value="Dive">Dive</option>
-      </select>
-    </div>
-  `;
+panel.innerHTML = `
+  <div class="ah-row">
+    <label>Role</label>
+    <select id="ah-role">
+      <option value="DPS">DPS</option>
+      <option value="Base">Base</option>
+    </select>
+  </div>
+  <div class="ah-row">
+    <label><span class="ah-tip" title="How do you plan to deal with Bend the knee mechanic?">Bend the knee</span></label>
+    <select id="ah-bend">
+      <option value="Voke">Voke</option>
+      <option value="Immort">Immort</option>
+    </select>
+  </div>
+  <div class="ah-row">
+    <label><span class="ah-tip" title="How do you plan to deal with Scarabs?">Scarabs</span></label>
+    <select id="ah-scarabs">
+      <option value="Barricade">Barricade</option>
+      <option value="Dive">Dive</option>
+    </select>
+  </div>
+  <div class="ah-row">
+    <label>Logs</label>
+    <input type="checkbox" id="ah-logs">
+  </div>
+`;
   document.body.appendChild(panel);
 
-  // set initial values
-  panel.querySelector("#ah-role").value = SETTINGS.role;
-  panel.querySelector("#ah-bend").value = SETTINGS.bend;
-  panel.querySelector("#ah-scarabs").value = SETTINGS.scarabs;
+panel.querySelector("#ah-role").value = SETTINGS.role;
+panel.querySelector("#ah-bend").value = SETTINGS.bend;
+panel.querySelector("#ah-scarabs").value = SETTINGS.scarabs;
+panel.querySelector("#ah-logs").checked = SETTINGS.logs;
 
   // events
   cog.addEventListener("click", () => {
     panel.style.display = panel.style.display === "none" ? "block" : "none";
   });
-  function updateFromUI(){
-    SETTINGS.role = panel.querySelector("#ah-role").value;
-    SETTINGS.bend = panel.querySelector("#ah-bend").value;
-    SETTINGS.scarabs = panel.querySelector("#ah-scarabs").value;
-    saveSettings(SETTINGS);
-    log(`⚙️ Settings → role=${SETTINGS.role}, bend=${SETTINGS.bend}, scarabs=${SETTINGS.scarabs}`);
-  }
+function updateFromUI(){
+  SETTINGS.role = panel.querySelector("#ah-role").value;
+  SETTINGS.bend = panel.querySelector("#ah-bend").value;
+  SETTINGS.scarabs = panel.querySelector("#ah-scarabs").value;
+  SETTINGS.logs = panel.querySelector("#ah-logs").checked;
+  saveSettings(SETTINGS);
+  log(`⚙️ Settings → role=${SETTINGS.role}, bend=${SETTINGS.bend}, scarabs=${SETTINGS.scarabs}, logs=${SETTINGS.logs}`);
+}
   panel.addEventListener("change", updateFromUI);
 })();
 
