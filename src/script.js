@@ -1,7 +1,7 @@
 // Identify this app with Alt1
 A1lib.identifyApp("appconfig.json");
 
-// Logger for both console + small overlay in HTML
+// tiny logger to page + console
 function log(msg) {
   console.log(msg);
   const out = document.getElementById("output");
@@ -21,17 +21,15 @@ if (window.alt1) {
     `Alt1 not detected, click <a href="alt1://addapp/${url}">here</a> to add this app.`;
 }
 
-// Create a chatbox reader
+// Create a chatbox reader (CDN build exposes Chatbox.default)
 const reader = new Chatbox.default();
+
+// IMPORTANT: no color filter → capture all visible chat text
 reader.readargs = {
-  colors: [
-    // Only green text from Amascut callouts
-    A1lib.mixColor(153, 255, 153),
-  ],
   backwards: true
 };
 
-// Map phrases → priority order
+// phrase → priority mapping
 const responses = {
   weak:     "Range > Magic > Melee",
   grovel:   "Magic > Melee > Range",
@@ -60,20 +58,24 @@ function updateUI(key) {
   log(`🎯 UI set to: ${responses[key]}`);
 }
 
-// Prevents spamming UI if same phrase repeats quickly
+// prevent spam when the same phrase repeats
 let lastSig = "";
 let lastAt = 0;
 
 function readChatbox() {
   let segs = [];
-  try { segs = reader.read() || []; } catch(e) {
+  try { segs = reader.read() || []; } catch (e) {
     log("⚠️ reader.read() failed; check Alt1 Pixel permission.");
     return;
   }
   if (!segs.length) return;
 
-  const full = segs.map(s => s.text || "").join(" ").toLowerCase();
-  if (!full.trim()) return;
+  // Debug: see what OCR returned (trim to avoid huge dumps)
+  const preview = segs.map(s => (s.text || "").trim()).filter(Boolean);
+  log("segs: " + JSON.stringify(preview));
+
+  const full = preview.join(" ").toLowerCase();
+  if (!full) return;
 
   let key = null;
   if (full.includes("weak")) key = "weak";
@@ -92,18 +94,23 @@ function readChatbox() {
   }
 }
 
-// Try to find the chatbox
+// Bind chat, then start loop
 setTimeout(() => {
   const h = setInterval(() => {
-    if (reader.pos === null) {
-      log("🔍 finding chatbox...");
-      reader.find();
-    } else {
-      clearInterval(h);
-      reader.pos.mainbox = reader.pos.boxes[0];
-      log("✅ chatbox found");
-      showSelected(reader.pos);
-      setInterval(readChatbox, 300);
+    try {
+      if (reader.pos === null) {
+        log("🔍 finding chatbox...");
+        reader.find();
+      } else {
+        clearInterval(h);
+        // select first (top-most) chat pane
+        reader.pos.mainbox = reader.pos.boxes[0];
+        log("✅ chatbox found");
+        showSelected(reader.pos);
+        setInterval(readChatbox, 300);
+      }
+    } catch (e) {
+      log("⚠️ " + (e && e.message ? e.message : e));
     }
   }, 800);
 }, 50);
