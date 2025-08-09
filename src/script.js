@@ -9,7 +9,7 @@ function log(msg) {
   const d = document.createElement("div");
   d.textContent = msg;
   out.prepend(d);
-  while (out.childElementCount > 80) out.removeChild(out.lastChild);
+  while (out.childElementCount > 120) out.removeChild(out.lastChild);
 }
 
 // If Alt1 not found, show "add app" link
@@ -35,16 +35,15 @@ function buildLimeSweep() {
   }
   return out;
 }
-
 const LIME_SWEEP = buildLimeSweep();
 
 // Speaker/name & common UI colors that help OCR return full lines
 const COMMON = [
-  A1lib.mixColor(69,131,145),   // "Amascut, the Devourer:" (cyan-ish)
+  A1lib.mixColor(69,131,145),   // "Amascut, the Devourer:" cyan-ish
   A1lib.mixColor(255,255,255),  // white
   A1lib.mixColor(127,169,255),  // public chat blue
   A1lib.mixColor(102,152,255),  // drops blue
-  A1lib.mixColor(67,188,188),   // teal
+  A1lib.mixColor(67,188,188),   // teal/system
   A1lib.mixColor(255,255,0),    // yellow
   A1lib.mixColor(235,47,47),    // red
 ];
@@ -65,11 +64,19 @@ const RESPONSES = {
 
 function showSelected(chat) {
   try {
+    // green “we found it” box
     alt1.overLayRect(
       A1lib.mixColor(0, 255, 0),
       chat.mainbox.rect.x, chat.mainbox.rect.y,
       chat.mainbox.rect.width, chat.mainbox.rect.height,
       2000, 5
+    );
+    // explicit red box to show the exact OCR rectangle
+    alt1.overLayRect(
+      A1lib.mixColor(255, 0, 0),
+      reader.pos.mainbox.rect.x, reader.pos.mainbox.rect.y,
+      reader.pos.mainbox.rect.width, reader.pos.mainbox.rect.height,
+      2000, 3
     );
   } catch {}
 }
@@ -91,21 +98,20 @@ let lastAt = 0;
 
 function readChatbox() {
   let segs = [];
-  try { segs = reader.read() || []; } catch (e) {
+  try {
+    segs = reader.read() || [];
+  } catch (e) {
     log("⚠️ reader.read() failed; check Alt1 Pixel permission.");
     return;
   }
   if (!segs.length) return;
 
-  // Log segments that contain our keywords, including their RGB
+  // Log ALL segments with their color so we can see what OCR actually captured
   for (const s of segs) {
     const t = (s.text || "").trim();
     if (!t) continue;
-    const tl = t.toLowerCase();
-    if (tl.includes("weak") || tl.includes("grovel") || tl.includes("pathetic")) {
-      const c = A1lib.decodeColor(s.color);
-      log(`HIT SEG: "${t}" rgb=(${c.r},${c.g},${c.b})`);
-    }
+    const c = A1lib.decodeColor(s.color);
+    log(`SEG: "${t}" rgb=(${c.r},${c.g},${c.b})`);
   }
 
   const full = segs.map(s => (s.text || "").trim()).filter(Boolean).join(" ").toLowerCase();
@@ -137,7 +143,7 @@ setTimeout(() => {
         reader.find();
       } else {
         clearInterval(h);
-        // select first (top-most) chat pane
+        // select first (top-most) chat pane (adjust if you use a different tab)
         reader.pos.mainbox = reader.pos.boxes[0];
         log("✅ chatbox found");
         showSelected(reader.pos);
