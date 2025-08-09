@@ -3,7 +3,7 @@
   "description": "Helps with mechanics of Amascut.",
   "appUrl": "./index.html",
   "version": "1.0.5",
-  "configUrl": "./src/appconfig.json",
+  "configUrl": "./appconfig.json",
   "iconUrl": "./src/icon.png",
   "defaultWidth": 160,
   "defaultHeight": 188,
