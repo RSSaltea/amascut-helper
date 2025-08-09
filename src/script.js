@@ -461,3 +461,94 @@ function showSelected(pos) {
     alt1.overLayRect(A1lib.mixColor(0, 255, 0), b.x, b.y, b.width, b.height, 2000, 4);
   } catch {}
 }
+
+/* ============================
+   [ADD] Tumeken call-out support
+   ============================ */
+
+// [ADD] Tumeken speaker name color captured from your screenshot
+const TUMEKEN_NAME_RGB = [23, 41, 42];
+
+// [ADD] Include Tumeken name color in the palette (non-breaking)
+try {
+  if (reader && reader.readargs && reader.readargs.colors && Array.isArray(reader.readargs.colors)) {
+    reader.readargs.colors.push(A1lib.mixColor(...TUMEKEN_NAME_RGB));
+  }
+} catch { /* safe to ignore */ }
+
+// [ADD] Handle Tumeken’s “(player) shield us from her shadow…” line
+function onTumekenLine(full, lineId) {
+  if (lineId && seenLineIds.has(lineId)) return;
+  if (lineId) {
+    seenLineIds.add(lineId);
+    seenLineQueue.push(lineId);
+    if (seenLineQueue.length > 120) {
+      const old = seenLineQueue.shift();
+      seenLineIds.delete(old);
+    }
+  }
+
+  // Extract the player name before the phrase
+  const m = full.match(/^\s*([\w\- ']+?)\s+shield us from her shadow/i);
+  if (!m) return;
+
+  const player = m[1].trim();
+  if (!player) return;
+
+  // de-dupe
+  const now = Date.now();
+  const sig = "tumekenShield|" + player;
+  if (sig === lastSig && now - lastAt < 1200) return;
+  lastSig = sig;
+  lastAt = now;
+
+  showSingleRow(player);
+  countdownTimers.push(setTimeout(() => {
+    resetUI();
+    log("↺ UI reset");
+  }, 8000));
+}
+
+// [ADD] Separate reader loop for Tumeken without changing your Amascut loop
+function readChatboxTumeken() {
+  let segs = [];
+  try { segs = reader.read() || []; }
+  catch (e) { log("⚠️ reader.read() failed; enable Pixel permission in Alt1."); return; }
+  if (!segs.length) return;
+
+  for (let i = 0; i < segs.length; i++) {
+    const seg = segs[i];
+    if (!seg.fragments || seg.fragments.length === 0) continue;
+
+    // Confirm the speaker is Tumeken
+    if (!/Tumeken/i.test(seg.text)) continue;
+
+    // Build the full spoken text (strip "Tumeken:" + stitch following green lines)
+    let full = seg.text;
+    const colon = full.indexOf(":");
+    if (colon !== -1) full = full.slice(colon + 1).trim();
+
+    for (let j = i + 1; j < segs.length; j++) {
+      const s2 = segs[j];
+      if (!s2.fragments || s2.fragments.length === 0) break;
+
+      const col = firstNonWhiteColor(s2);
+      if (col && isColorNear(col, TEXT_RGB)) {
+        full += " " + s2.text.trim();
+      } else {
+        break;
+      }
+    }
+
+    if (!full) continue;
+
+    if (/shield us from her shadow/i.test(full)) {
+      log("Tumeken says: " + full);
+      const lineId = seg.text.trim();
+      onTumekenLine(full, lineId);
+    }
+  }
+}
+
+// [ADD] Start Tumeken polling loop (kept separate)
+setInterval(readChatboxTumeken, 250);
