@@ -309,36 +309,39 @@ function onAmascutLine(full, lineId) {
   lastSig = sig;
   lastAt = now;
 
-if (key === "tear") {
-  const role = (SETTINGS.role || "").toLowerCase();
-  const bend = (SETTINGS.bend || "").toLowerCase();
+  if (key === "tear") {
+    let first = "none"; 
+    if (SETTINGS.role === "DPS" && SETTINGS.bend === "Voke") first = "voke";
+    else if (SETTINGS.role === "Base" && SETTINGS.bend === "Immort") first = "immort";
 
-  let first = "none";
-  if (role === "dps" && bend.startsWith("voke")) first = "voke";
-  else if (role === "base" && bend.startsWith("immort")) first = "immort";
+    const firstDuration = (first === "voke" || first === "immort") ? 8 : 0;
 
-  const firstDuration = (first === "voke" || first === "immort") ? 8 : 0;
+    if (first === "voke") {
+      startCountdown("Voke → Reflect", 8);
+    } else if (first === "immort") {
+      startCountdown("Immortality", 8);
+    } 
 
-  if (first === "voke") {
-    startCountdown("Voke → Reflect", 8);
-  } else if (first === "immort") {
-    startCountdown("Immortality", 8);
-  }
+    const scarabDelayMs = (firstDuration ? (firstDuration + 2) : 2) * 1000;
 
-  const scarabDelayMs = (firstDuration ? (firstDuration + 2) : 2) * 1000;
+    countdownTimers.push(setTimeout(() => {
+      if (SETTINGS.scarabs === "Barricade") {
+        
+        const barricadeTime = (SETTINGS.role === "Base") ? 18 : 10;
+        startCountdown("Barricade", barricadeTime);
+        countdownTimers.push(setTimeout(() => {
+          resetUI();
+          log("↺ UI reset");
+        }, barricadeTime * 1000));
+      } else {
 
-  countdownTimers.push(setTimeout(() => {
-    if (SETTINGS.scarabs === "Barricade") {
-      const barricadeTime = (role === "base") ? 18 : 10;
-      startCountdown("Barricade", barricadeTime);
-      countdownTimers.push(setTimeout(() => { resetUI(); log("↺ UI reset"); }, barricadeTime * 1000));
-    } else {
-      showSingleRow("Dive");
-      countdownTimers.push(setTimeout(() => { resetUI(); log("↺ UI reset"); }, 8000));
-    }
-  }, scarabDelayMs));
-}
-
+        showSingleRow("Dive");
+        countdownTimers.push(setTimeout(() => {
+          resetUI();
+          log("↺ UI reset");
+        }, 8000));
+      }
+    }, scarabDelayMs));
 
   } else if (key === "barricadeHeart") {
 
