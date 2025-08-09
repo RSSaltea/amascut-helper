@@ -1,110 +1,132 @@
-// Identify this app with Alt1
-A1lib.identifyApp("../appconfig.json");
+A1lib.identifyApp("appconfig.json");
 
-// Simple logger to page + console
 function log(msg) {
-    console.log(msg);
-    const out = document.getElementById("output");
-    if (out) {
-        const div = document.createElement("div");
-        div.textContent = msg;
-        out.prepend(div);
-        while (out.childElementCount > 100) out.removeChild(out.lastChild);
-    }
+  console.log(msg);
+  const out = document.getElementById("output");
+  if (!out) return;
+  const d = document.createElement("div");
+  d.textContent = msg;
+  out.prepend(d);
+  while (out.childElementCount > 50) out.removeChild(out.lastChild);
 }
 
-// Alt1 detect / add link
 if (window.alt1) {
-    alt1.identifyAppUrl("../appconfig.json");
+  alt1.identifyAppUrl("./appconfig.json");
 } else {
-    const url = new URL("../appconfig.json", document.location.href).href;
-    document.body.innerHTML =
-        `Alt1 not detected, click <a href="alt1://addapp/${url}">here</a> to add this app.`;
+  const url = new URL("./appconfig.json", document.location.href).href;
+  document.body.innerHTML =
+    `Alt1 not detected, click <a href="alt1://addapp/${url}">here</a> to add this app.`;
 }
 
-// Create a chatbox reader
 const reader = new Chatbox.default();
 
-// --- Keyword mappings ---
-const RESPONSES = {
-    weak: "Range > Magic > Melee",
-    grovel: "Magic > Melee > Range",
-    pathetic: "Melee > Range > Magic",
+const LIME_GREENS = [
+  A1lib.mixColor(145,255,145),
+  A1lib.mixColor(148,255,148),
+  A1lib.mixColor(150,255,150),
+  A1lib.mixColor(153,255,153),
+  A1lib.mixColor(156,255,156),
+  A1lib.mixColor(159,255,159),
+  A1lib.mixColor(162,255,162)
+];
+
+// some general chat colours that help the OCR produce segments reliably
+const GENERAL_CHAT = [
+  A1lib.mixColor(255,255,255),  // white
+  A1lib.mixColor(127,169,255),  // public chat blue
+  A1lib.mixColor(102,152,255),  // drops blue
+  A1lib.mixColor(67,188,188),   // teal system-ish
+  A1lib.mixColor(255,255,0),    // yellow
+  A1lib.mixColor(235,47,47),    // red
+];
+
+reader.readargs = {
+  colors: [...LIME_GREENS, ...GENERAL_CHAT],
+  backwards: true
 };
 
-// --- Update the UI table ---
-function updateUI(key) {
-    const order = RESPONSES[key].split(" > ");
-    const rows = document.querySelectorAll("#spec tr");
-    rows.forEach((row, i) => {
-        const cell = row.querySelector("td");
-        if (cell) cell.textContent = order[i] || "";
-        row.classList.toggle("selected", i === 0);
-    });
-    log(`🎯 Updated UI to: ${RESPONSES[key]}`);
+const RESPONSES = {
+  weak:     "Range > Magic > Melee",
+  grovel:   "Magic > Melee > Range",
+  pathetic: "Melee > Range > Magic",
+};
+
+function showSelected(chat) {
+  try {
+    alt1.overLayRect(
+      A1lib.mixColor(0, 255, 0),
+      chat.mainbox.rect.x, chat.mainbox.rect.y,
+      chat.mainbox.rect.width, chat.mainbox.rect.height,
+      2000, 5
+    );
+  } catch {}
 }
 
-// Anti-spam vars
+function updateUI(key) {
+  const order = RESPONSES[key].split(" > ");
+  const rows = document.querySelectorAll("#spec tr");
+  rows.forEach((row, i) => {
+    const cell = row.querySelector("td");
+    if (cell) cell.textContent = order[i] || "";
+    row.classList.toggle("selected", i === 0);
+  });
+  log(`🎯 UI set to: ${RESPONSES[key]}`);
+}
+
 let lastSig = "";
 let lastAt = 0;
 
-// --- Read chatbox ---
 function readChatbox() {
-    let segs = [];
-    try {
-        segs = reader.read() || [];
-    } catch (e) {
-        log("⚠️ reader.read() failed; check capture settings");
-        return;
+  let segs = [];
+  try { segs = reader.read() || []; } catch (e) {
+    log("⚠️ reader.read() failed; check Alt1 Pixel permission.");
+    return;
+  }
+  if (!segs.length) {
+    return;
+  }
+
+  const texts = segs.map(s => (s.text || "").trim()).filter(Boolean);
+  if (!texts.length) return;
+
+
+  log("segs: " + JSON.stringify(texts.slice(-6)));
+
+  const full = texts.join(" ").toLowerCase();
+
+  let key = null;
+  if (full.includes("weak")) key = "weak";
+  else if (full.includes("grovel")) key = "grovel";
+  else if (full.includes("pathetic")) key = "pathetic";
+
+  if (key) {
+    const now = Date.now();
+    const sig = key + "|" + full;
+    if (sig !== lastSig || (now - lastAt) > 1500) {
+      lastSig = sig;
+      lastAt = now;
+      log(`✅ matched ${key}`);
+      updateUI(key);
     }
-    if (!segs.length) return;
-
-    // Log all segments
-    for (const s of segs) {
-        const t = (s.text || "").trim();
-        if (!t) continue;
-        const c = A1lib.decodeColor(s.color);
-        log(`SEG: "${t}" rgb=(${c.r},${c.g},${c.b})`);
-    }
-
-    const full = segs.map(s => (s.text || "").trim()).filter(Boolean).join(" ").toLowerCase();
-    if (!full) return;
-
-    // Check for keywords
-    let key = null;
-    if (full.includes("weak")) key = "weak";
-    else if (full.includes("grovel")) key = "grovel";
-    else if (full.includes("pathetic")) key = "pathetic";
-
-    if (key) {
-        const now = Date.now();
-        const sig = key + "|" + full;
-        if (sig !== lastSig || (now - lastAt) > 1500) {
-            lastSig = sig;
-            lastAt = now;
-            updateUI(key);
-        }
-    }
+  }
 }
 
-// Bind to chat and start reading
 setTimeout(() => {
-    const h = setInterval(() => {
-        if (reader.pos === null) {
-            log("🔍 finding chatbox...");
-            reader.find();
-        } else {
-            clearInterval(h);
-            log("✅ chatbox found");
-            // Show the area it’s reading
-            alt1.overLayRect(
-                A1lib.mixColor(255, 0, 0),
-                reader.pos.mainbox.rect.x, reader.pos.mainbox.rect.y,
-                reader.pos.mainbox.rect.width, reader.pos.mainbox.rect.height,
-                2000, 3
-            );
-            // Start loop
-            setInterval(readChatbox, 300);
-        }
-    }, 800);
+  const h = setInterval(() => {
+    try {
+      if (reader.pos === null) {
+        log("🔍 finding chatbox...");
+        reader.find();
+      } else {
+        clearInterval(h);
+
+        reader.pos.mainbox = reader.pos.boxes[0];
+        log("✅ chatbox found");
+        showSelected(reader.pos);
+        setInterval(readChatbox, 300);
+      }
+    } catch (e) {
+      log("⚠️ " + (e && e.message ? e.message : e));
+    }
+  }, 800);
 }, 50);
