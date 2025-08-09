@@ -44,12 +44,10 @@ In addition to standard mechanics, this app also handles Hardmode deity location
 ## Installation
 
 1. **One-click install in Alt1:**  
-<a href="alt1://addapp/https://rssaltea.github.io/amascut-helper/appconfig.json">
-  <img
-    alt="Install in Alt1"
-    src="https://img.shields.io/badge/Install%20in%20Alt1-Click%20to%20Install-1f6feb"
-  />
-</a>
+  <a href="alt1://addapp/https://rssaltea.github.io/amascut-helper/appconfig.json">
+    <img alt="Install in Alt1" src="https://img.shields.io/badge/Install%20in%20Alt1-Click%20to%20Install-1f6feb" />
+  </a>
+</p>
 
 2. **Manual install:**
    - Download this repo or the app folder.
