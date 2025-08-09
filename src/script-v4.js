@@ -1,5 +1,5 @@
 // Identify this app with Alt1
-A1lib.identifyApp("../appconfig.json");
+A1lib.identifyApp("appconfig.json");
 
 // Simple logger to page + console
 function log(msg) {
@@ -15,11 +15,11 @@ function log(msg) {
 
 // Alt1 detect / add link
 if (window.alt1) {
-    alt1.identifyAppUrl("../appconfig.json");
+    alt1.identifyAppUrl("./appconfig.json");
 } else {
-    const url = new URL("../appconfig.json", document.location.href).href;
+    const url = new URL("./appconfig.json", document.location.href).href;
     document.body.innerHTML =
-        `Alt1 not detected, click <a href="alt1://addapp/${https://rssaltea.github.io/amascut-helper/appconfig.json}">here</a> to add this app.`;
+        `Alt1 not detected, click <a href="alt1://addapp/${url}">here</a> to add this app.`;
 }
 
 // Create a chatbox reader
