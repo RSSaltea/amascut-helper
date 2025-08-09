@@ -5,8 +5,7 @@
 A1lib.identifyApp("appconfig.json");
 
 function log(msg) {
-  if (!SETTINGS.logs) return; // ⬅️ respect logs setting
-
+  if (!SETTINGS.logs) return; // skip if off
   try {
     console.log(msg);
     const out = document.getElementById("output");
@@ -162,7 +161,7 @@ function resetUI() {
 
   if (rows[0]) {
     const c0 = rows[0].querySelector("td");
-    if (c0) c0.textContent = "Waiting..";
+    if (c0) c0.textContent = "Waiting...";
     rows[0].style.display = "";
     rows[0].classList.remove("role-range", "role-magic", "role-melee", "callout", "flash");
     rows[0].classList.add("selected");
@@ -280,8 +279,15 @@ function updateFromUI(){
   SETTINGS.scarabs = panel.querySelector("#ah-scarabs").value;
   SETTINGS.logs = panel.querySelector("#ah-logs").checked;
   saveSettings(SETTINGS);
+
+  if (!SETTINGS.logs) {
+    const out = document.getElementById("output");
+    if (out) out.innerHTML = ""; // clear logs immediately
+  }
+
   log(`⚙️ Settings → role=${SETTINGS.role}, bend=${SETTINGS.bend}, scarabs=${SETTINGS.scarabs}, logs=${SETTINGS.logs}`);
 }
+
   panel.addEventListener("change", updateFromUI);
 })();
 
