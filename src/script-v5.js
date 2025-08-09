@@ -1,5 +1,7 @@
+// Amascut Helper – script-v5 (no bundler)
 A1lib.identifyApp("appconfig.json");
 
+// simple logger to page + console
 function log(msg) {
   console.log(msg);
   const out = document.getElementById("output");
@@ -10,16 +12,26 @@ function log(msg) {
   while (out.childElementCount > 50) out.removeChild(out.lastChild);
 }
 
+// surface runtime errors to the on-page log
+window.onerror = function (msg, src, line, col, err) {
+  log(`⚠️ JS error: ${msg} @ ${line}:${col}`);
+};
+
+// detect Alt1
 if (window.alt1) {
   alt1.identifyAppUrl("./appconfig.json");
 } else {
   const url = new URL("./appconfig.json", document.location.href).href;
   document.body.innerHTML =
-    Alt1 not detected, click <a href="alt1://addapp/${url}">here</a> to add this app.;
+    `Alt1 not detected, click <a href="alt1://addapp/${url}">here</a> to add this app.`;
 }
 
+log("✅ script-v5 loaded");
+
+// chatbox reader
 const reader = new Chatbox.default();
 
+// lime greens for Weak/Grovel/Pathetic
 const LIME_GREENS = [
   A1lib.mixColor(145,255,145),
   A1lib.mixColor(148,255,148),
@@ -30,12 +42,12 @@ const LIME_GREENS = [
   A1lib.mixColor(162,255,162)
 ];
 
-// some general chat colours that help the OCR produce segments reliably
+// general chat colours to help OCR
 const GENERAL_CHAT = [
   A1lib.mixColor(255,255,255),  // white
   A1lib.mixColor(127,169,255),  // public chat blue
-  A1lib.mixColor(102,152,255),  // drops blue
-  A1lib.mixColor(67,188,188),   // teal system-ish
+  A1lib.mixColor(102,152,255),  // notable drops blue
+  A1lib.mixColor(67,188,188),   // teal/system
   A1lib.mixColor(255,255,0),    // yellow
   A1lib.mixColor(235,47,47),    // red
 ];
@@ -45,6 +57,8 @@ reader.readargs = {
   backwards: true
 };
 
+log(`OCR color list size: ${reader.readargs.colors.length}`);
+
 const RESPONSES = {
   weak:     "Range > Magic > Melee",
   grovel:   "Magic > Melee > Range",
@@ -53,10 +67,12 @@ const RESPONSES = {
 
 function showSelected(chat) {
   try {
+    const box = chat.mainbox || chat.boxes?.[0];
+    if (!box) return;
     alt1.overLayRect(
       A1lib.mixColor(0, 255, 0),
-      chat.mainbox.rect.x, chat.mainbox.rect.y,
-      chat.mainbox.rect.width, chat.mainbox.rect.height,
+      box.rect.x, box.rect.y,
+      box.rect.width, box.rect.height,
       2000, 5
     );
   } catch {}
@@ -70,25 +86,25 @@ function updateUI(key) {
     if (cell) cell.textContent = order[i] || "";
     row.classList.toggle("selected", i === 0);
   });
-  log(🎯 UI set to: ${RESPONSES[key]});
+  log(`🎯 UI set to: ${RESPONSES[key]}`);
 }
 
+// anti-spam
 let lastSig = "";
 let lastAt = 0;
 
 function readChatbox() {
   let segs = [];
-  try { segs = reader.read() || []; } catch (e) {
+  try {
+    segs = reader.read() || [];
+  } catch (e) {
     log("⚠️ reader.read() failed; check Alt1 Pixel permission.");
     return;
   }
-  if (!segs.length) {
-    return;
-  }
+  if (!segs.length) return;
 
   const texts = segs.map(s => (s.text || "").trim()).filter(Boolean);
   if (!texts.length) return;
-
 
   log("segs: " + JSON.stringify(texts.slice(-6)));
 
@@ -96,37 +112,4 @@ function readChatbox() {
 
   let key = null;
   if (full.includes("weak")) key = "weak";
-  else if (full.includes("grovel")) key = "grovel";
-  else if (full.includes("pathetic")) key = "pathetic";
-
-  if (key) {
-    const now = Date.now();
-    const sig = key + "|" + full;
-    if (sig !== lastSig || (now - lastAt) > 1500) {
-      lastSig = sig;
-      lastAt = now;
-      log(✅ matched ${key});
-      updateUI(key);
-    }
-  }
-}
-
-setTimeout(() => {
-  const h = setInterval(() => {
-    try {
-      if (reader.pos === null) {
-        log("🔍 finding chatbox...");
-        reader.find();
-      } else {
-        clearInterval(h);
-
-        reader.pos.mainbox = reader.pos.boxes[0];
-        log("✅ chatbox found");
-        showSelected(reader.pos);
-        setInterval(readChatbox, 300);
-      }
-    } catch (e) {
-      log("⚠️ " + (e && e.message ? e.message : e));
-    }
-  }, 800);
-}, 50);
+  else if (
