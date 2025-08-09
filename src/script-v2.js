@@ -20,26 +20,24 @@ if (window.alt1) {
 
 const reader = new Chatbox.default();
 
-// Build a wider lime sweep to catch all shades
-function buildLimeSweep() {
-  const out = [];
-  for (let rb = 80; rb <= 200; rb += 2) {
-    for (let g = 240; g <= 255; g++) {
-      out.push(A1lib.mixColor(rb, g, rb));
-    }
-  }
-  return out;
-}
-const LIME_GREENS = buildLimeSweep();
+const LIME_GREENS = [
+  A1lib.mixColor(145,255,145),
+  A1lib.mixColor(148,255,148),
+  A1lib.mixColor(150,255,150),
+  A1lib.mixColor(153,255,153),
+  A1lib.mixColor(156,255,156),
+  A1lib.mixColor(159,255,159),
+  A1lib.mixColor(162,255,162)
+];
 
-// Some general chat colours that help the OCR produce segments reliably
+// some general chat colours that help the OCR produce segments reliably
 const GENERAL_CHAT = [
-  A1lib.mixColor(255, 255, 255),  // white
-  A1lib.mixColor(127, 169, 255),  // public chat blue
-  A1lib.mixColor(102, 152, 255),  // drops blue
-  A1lib.mixColor(67, 188, 188),   // teal/system
-  A1lib.mixColor(255, 255, 0),    // yellow
-  A1lib.mixColor(235, 47, 47),    // red
+  A1lib.mixColor(255,255,255),  // white
+  A1lib.mixColor(127,169,255),  // public chat blue
+  A1lib.mixColor(102,152,255),  // drops blue
+  A1lib.mixColor(67,188,188),   // teal system-ish
+  A1lib.mixColor(255,255,0),    // yellow
+  A1lib.mixColor(235,47,47),    // red
 ];
 
 reader.readargs = {
@@ -84,14 +82,13 @@ function readChatbox() {
     log("⚠️ reader.read() failed; check Alt1 Pixel permission.");
     return;
   }
-  if (!segs.length) return;
+  if (!segs.length) {
+    return;
+  }
 
-  const texts = segs
-    .map(s => (s.text || "").trim())
-    .filter(Boolean)
-    .filter(t => !(t.startsWith("[") && t.endsWith("]"))); // remove timestamps
-
+  const texts = segs.map(s => (s.text || "").trim()).filter(Boolean);
   if (!texts.length) return;
+
 
   log("segs: " + JSON.stringify(texts.slice(-6)));
 
@@ -122,6 +119,7 @@ setTimeout(() => {
         reader.find();
       } else {
         clearInterval(h);
+
         reader.pos.mainbox = reader.pos.boxes[0];
         log("✅ chatbox found");
         showSelected(reader.pos);
