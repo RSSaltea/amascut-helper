@@ -26,7 +26,8 @@ const LIME_GREENS = [
   A1lib.mixColor(150,255,150),
   A1lib.mixColor(153,255,153),
   A1lib.mixColor(156,255,156),
-  A1lib.mixColor(159,255,159)
+  A1lib.mixColor(159,255,159),
+  A1lib.mixColor(162,255,162)
 ];
 
 // some general chat colours that help the OCR produce segments reliably
