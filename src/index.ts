@@ -1,24 +1,29 @@
 // Alt1 app identification
 A1lib.identifyApp("appconfig.json");
 
-// UI logging helper
 function log(msg: string) {
-    console.log(msg);
-    const out = document.getElementById("output");
-    if (!out) return;
-    const d = document.createElement("div");
-    d.textContent = msg;
-    out.prepend(d);
-    while (out.childElementCount > 50) out.removeChild(out.lastChild);
+  console.log(msg);
+  const out = document.getElementById("output");
+  if (!out) return;
+  const d = document.createElement("div");
+  d.textContent = msg;
+  out.prepend(d);
+  // TS-safe remove loop
+  while (out.lastChild) out.removeChild(out.lastChild);
 }
 
 // Detect if running in Alt1 or browser
 if (window.alt1) {
-    alt1.identifyAppUrl("./appconfig.json");
+  alt1.identifyAppUrl("./appconfig.json");
 } else {
-    const url = new URL("./appconfig.json", document.location.href).href;
-    document.body.innerHTML =
-        `Alt1 not detected, click <a href="alt1://addapp/${url}">here</a> to add this app.`;
+  const url = new URL("./appconfig.json", document.location.href).href;
+  document.body.innerHTML =
+    `Alt1 not detected, click <a href="alt1://addapp/${url}">here</a> to add this app.`;
+}
+
+// … later, wherever you have catch blocks:
+} catch (e: any) {
+  log("⚠️ " + (e && e.message ? e.message : e));
 }
 
 // Import images for image detection
