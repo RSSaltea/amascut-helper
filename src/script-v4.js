@@ -15,11 +15,25 @@ if (window.alt1) {
 } else {
   const url = new URL("./appconfig.json", document.location.href).href;
   document.body.innerHTML =
-    `Alt1 not detected, click <a href="alt1://addapp/${url}">here</a> to add this app.`;
+    Alt1 not detected, click <a href="alt1://addapp/${url}">here</a> to add this app.;
 }
 
-const reader = new Chatbox.default();
+// build cyan sweep for boss name
+function buildCyanSweep() {
+  const out = [];
+  for (let r = 60; r <= 80; r += 2) {       // red
+    for (let g = 120; g <= 140; g += 2) {   // green
+      for (let b = 135; b <= 155; b += 2) { // blue
+        out.push(A1lib.mixColor(r, g, b));
+      }
+    }
+  }
+  return out;
+}
 
+const CYAN_SWEEP = buildCyanSweep();
+
+// lime greens for "Weak/Grovel/Pathetic"
 const LIME_GREENS = [
   A1lib.mixColor(145,255,145),
   A1lib.mixColor(148,255,148),
@@ -30,7 +44,7 @@ const LIME_GREENS = [
   A1lib.mixColor(162,255,162)
 ];
 
-// Some general chat colours that help the OCR produce segments reliably
+// general chat colours for stability
 const GENERAL_CHAT = [
   A1lib.mixColor(255,255,255),  // white
   A1lib.mixColor(127,169,255),  // public chat blue
@@ -41,7 +55,7 @@ const GENERAL_CHAT = [
 ];
 
 reader.readargs = {
-  colors: [...LIME_GREENS, ...GENERAL_CHAT],
+  colors: [...LIME_GREENS, ...CYAN_SWEEP, ...GENERAL_CHAT],
   backwards: true
 };
 
@@ -70,7 +84,7 @@ function updateUI(key) {
     if (cell) cell.textContent = order[i] || "";
     row.classList.toggle("selected", i === 0);
   });
-  log(`🎯 UI set to: ${RESPONSES[key]}`);
+  log(🎯 UI set to: ${RESPONSES[key]});
 }
 
 let lastSig = "";
@@ -82,14 +96,16 @@ function readChatbox() {
     log("⚠️ reader.read() failed; check Alt1 Pixel permission.");
     return;
   }
-  if (!segs.length) return;
+  if (!segs.length) {
+    return;
+  }
 
   const texts = segs.map(s => (s.text || "").trim()).filter(Boolean);
   if (!texts.length) return;
 
+
   log("segs: " + JSON.stringify(texts.slice(-6)));
 
-  // Join both timestamp and text to catch cases where "Weak" is its own segment
   const full = texts.join(" ").toLowerCase();
 
   let key = null;
@@ -103,7 +119,7 @@ function readChatbox() {
     if (sig !== lastSig || (now - lastAt) > 1500) {
       lastSig = sig;
       lastAt = now;
-      log(`✅ matched ${key}`);
+      log(✅ matched ${key});
       updateUI(key);
     }
   }
