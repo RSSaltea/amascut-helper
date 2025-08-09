@@ -19,28 +19,20 @@ if (window.alt1) {
 } else {
     const url = new URL("../appconfig.json", document.location.href).href;
     document.body.innerHTML =
-        `Alt1 not detected, click <a href="alt1://addapp/${url}">here</a> to add this app.`;
+        `Alt1 not detected, click <a href="alt1://addapp/${https://rssaltea.github.io/amascut-helper/appconfig.json}">here</a> to add this app.`;
 }
 
 // Create a chatbox reader
 const reader = new Chatbox.default();
 
-// Simple readargs for all colors
-reader.readargs = {
-    colors: A1lib.mixColor(255, 255, 255),
-    backwards: true
-};
-
-log(`OCR color list size: ${reader.readargs.colors.length}`);
-
-// Mappings
+// --- Keyword mappings ---
 const RESPONSES = {
-    weak:     "Range > Magic > Melee",
-    grovel:   "Magic > Melee > Range",
+    weak: "Range > Magic > Melee",
+    grovel: "Magic > Melee > Range",
     pathetic: "Melee > Range > Magic",
 };
 
-// Update the UI table
+// --- Update the UI table ---
 function updateUI(key) {
     const order = RESPONSES[key].split(" > ");
     const rows = document.querySelectorAll("#spec tr");
@@ -52,10 +44,11 @@ function updateUI(key) {
     log(`🎯 Updated UI to: ${RESPONSES[key]}`);
 }
 
-// Anti-spam
+// Anti-spam vars
 let lastSig = "";
 let lastAt = 0;
 
+// --- Read chatbox ---
 function readChatbox() {
     let segs = [];
     try {
@@ -70,12 +63,14 @@ function readChatbox() {
     for (const s of segs) {
         const t = (s.text || "").trim();
         if (!t) continue;
-        log(`SEG: "${t}"`);
+        const c = A1lib.decodeColor(s.color);
+        log(`SEG: "${t}" rgb=(${c.r},${c.g},${c.b})`);
     }
 
     const full = segs.map(s => (s.text || "").trim()).filter(Boolean).join(" ").toLowerCase();
     if (!full) return;
 
+    // Check for keywords
     let key = null;
     if (full.includes("weak")) key = "weak";
     else if (full.includes("grovel")) key = "grovel";
