@@ -1,23 +1,23 @@
-// Amascut Helper – script-v5 (no bundler)
+// Identify app with Alt1
 A1lib.identifyApp("appconfig.json");
 
-// simple logger to page + console
+// Simple logger to the page + console
 function log(msg) {
-  console.log(msg);
+  try { console.log(msg); } catch {}
   const out = document.getElementById("output");
   if (!out) return;
   const d = document.createElement("div");
-  d.textContent = msg;
+  d.textContent = String(msg);
   out.prepend(d);
-  while (out.childElementCount > 50) out.removeChild(out.lastChild);
+  while (out.childElementCount > 80) out.removeChild(out.lastChild);
 }
 
-// surface runtime errors to the on-page log
-window.onerror = function (msg, src, line, col, err) {
-  log(`⚠️ JS error: ${msg} @ ${line}:${col}`);
-};
+// Show runtime errors in the output pane
+window.addEventListener("error", e => log("⚠️ " + (e.message || e)));
 
-// detect Alt1
+log("🟢 script (pre-webpack) loaded");
+
+// Alt1 detect / add link
 if (window.alt1) {
   alt1.identifyAppUrl("./appconfig.json");
 } else {
@@ -26,12 +26,10 @@ if (window.alt1) {
     `Alt1 not detected, click <a href="alt1://addapp/${url}">here</a> to add this app.`;
 }
 
-log("✅ script-v5 loaded");
-
-// chatbox reader
+// Create chatbox reader
 const reader = new Chatbox.default();
 
-// lime greens for Weak/Grovel/Pathetic
+// Lime greens for “Weak/Grovel/Pathetic”
 const LIME_GREENS = [
   A1lib.mixColor(145,255,145),
   A1lib.mixColor(148,255,148),
@@ -42,11 +40,11 @@ const LIME_GREENS = [
   A1lib.mixColor(162,255,162)
 ];
 
-// general chat colours to help OCR
+// General chat colours to stabilize OCR
 const GENERAL_CHAT = [
   A1lib.mixColor(255,255,255),  // white
-  A1lib.mixColor(127,169,255),  // public chat blue
-  A1lib.mixColor(102,152,255),  // notable drops blue
+  A1lib.mixColor(127,169,255),  // public blue
+  A1lib.mixColor(102,152,255),  // drops blue
   A1lib.mixColor(67,188,188),   // teal/system
   A1lib.mixColor(255,255,0),    // yellow
   A1lib.mixColor(235,47,47),    // red
@@ -57,8 +55,6 @@ reader.readargs = {
   backwards: true
 };
 
-log(`OCR color list size: ${reader.readargs.colors.length}`);
-
 const RESPONSES = {
   weak:     "Range > Magic > Melee",
   grovel:   "Magic > Melee > Range",
@@ -67,15 +63,15 @@ const RESPONSES = {
 
 function showSelected(chat) {
   try {
-    const box = chat.mainbox || chat.boxes?.[0];
-    if (!box) return;
     alt1.overLayRect(
       A1lib.mixColor(0, 255, 0),
-      box.rect.x, box.rect.y,
-      box.rect.width, box.rect.height,
+      chat.mainbox.rect.x, chat.mainbox.rect.y,
+      chat.mainbox.rect.width, chat.mainbox.rect.height,
       2000, 5
     );
-  } catch {}
+  } catch (e) {
+    log("overlay error: " + (e && e.message ? e.message : e));
+  }
 }
 
 function updateUI(key) {
@@ -89,7 +85,7 @@ function updateUI(key) {
   log(`🎯 UI set to: ${RESPONSES[key]}`);
 }
 
-// anti-spam
+// Anti-spam
 let lastSig = "";
 let lastAt = 0;
 
@@ -106,10 +102,44 @@ function readChatbox() {
   const texts = segs.map(s => (s.text || "").trim()).filter(Boolean);
   if (!texts.length) return;
 
+  // This is the “it’s reading chat” proof we used before
   log("segs: " + JSON.stringify(texts.slice(-6)));
 
   const full = texts.join(" ").toLowerCase();
 
   let key = null;
   if (full.includes("weak")) key = "weak";
-  else if (
+  else if (full.includes("grovel")) key = "grovel";
+  else if (full.includes("pathetic")) key = "pathetic";
+
+  if (key) {
+    const now = Date.now();
+    const sig = key + "|" + full;
+    if (sig !== lastSig || (now - lastAt) > 1500) {
+      lastSig = sig;
+      lastAt = now;
+      log(`✅ matched ${key}`);
+      updateUI(key);
+    }
+  }
+}
+
+// Bind to chat and start reading
+setTimeout(() => {
+  const h = setInterval(() => {
+    try {
+      if (reader.pos === null) {
+        log("🔍 finding chatbox...");
+        reader.find();
+      } else {
+        clearInterval(h);
+        reader.pos.mainbox = reader.pos.boxes[0];
+        log("✅ chatbox found");
+        showSelected(reader.pos);
+        setInterval(readChatbox, 300);
+      }
+    } catch (e) {
+      log("⚠️ " + (e && e.message ? e.message : e));
+    }
+  }, 800);
+}, 50);
