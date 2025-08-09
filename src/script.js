@@ -1,7 +1,5 @@
-// Identify this app with Alt1
 A1lib.identifyApp("appconfig.json");
 
-// tiny logger to page + console
 function log(msg) {
   console.log(msg);
   const out = document.getElementById("output");
@@ -9,10 +7,9 @@ function log(msg) {
   const d = document.createElement("div");
   d.textContent = msg;
   out.prepend(d);
-  while (out.childElementCount > 20) out.removeChild(out.lastChild);
+  while (out.childElementCount > 50) out.removeChild(out.lastChild);
 }
 
-// If Alt1 not found, show "add app" link
 if (window.alt1) {
   alt1.identifyAppUrl("./appconfig.json");
 } else {
@@ -21,16 +18,34 @@ if (window.alt1) {
     `Alt1 not detected, click <a href="alt1://addapp/${url}">here</a> to add this app.`;
 }
 
-// Create a chatbox reader (CDN build exposes Chatbox.default)
 const reader = new Chatbox.default();
 
-// IMPORTANT: no color filter → capture all visible chat text
+const LIME_GREENS = [
+  A1lib.mixColor(145,255,145),
+  A1lib.mixColor(148,255,148),
+  A1lib.mixColor(150,255,150),
+  A1lib.mixColor(153,255,153),
+  A1lib.mixColor(156,255,156),
+  A1lib.mixColor(159,255,159),
+  A1lib.mixColor(162,255,162)
+];
+
+// some general chat colours that help the OCR produce segments reliably
+const GENERAL_CHAT = [
+  A1lib.mixColor(255,255,255),  // white
+  A1lib.mixColor(127,169,255),  // public chat blue
+  A1lib.mixColor(102,152,255),  // drops blue
+  A1lib.mixColor(67,188,188),   // teal system-ish
+  A1lib.mixColor(255,255,0),    // yellow
+  A1lib.mixColor(235,47,47),    // red
+];
+
 reader.readargs = {
+  colors: [...LIME_GREENS, ...GENERAL_CHAT],
   backwards: true
 };
 
-// phrase → priority mapping
-const responses = {
+const RESPONSES = {
   weak:     "Range > Magic > Melee",
   grovel:   "Magic > Melee > Range",
   pathetic: "Melee > Range > Magic",
@@ -48,17 +63,16 @@ function showSelected(chat) {
 }
 
 function updateUI(key) {
-  const order = responses[key].split(" > ");
+  const order = RESPONSES[key].split(" > ");
   const rows = document.querySelectorAll("#spec tr");
   rows.forEach((row, i) => {
     const cell = row.querySelector("td");
     if (cell) cell.textContent = order[i] || "";
     row.classList.toggle("selected", i === 0);
   });
-  log(`🎯 UI set to: ${responses[key]}`);
+  log(`🎯 UI set to: ${RESPONSES[key]}`);
 }
 
-// prevent spam when the same phrase repeats
 let lastSig = "";
 let lastAt = 0;
 
@@ -68,14 +82,17 @@ function readChatbox() {
     log("⚠️ reader.read() failed; check Alt1 Pixel permission.");
     return;
   }
-  if (!segs.length) return;
+  if (!segs.length) {
+    return;
+  }
 
-  // Debug: see what OCR returned (trim to avoid huge dumps)
-  const preview = segs.map(s => (s.text || "").trim()).filter(Boolean);
-  log("segs: " + JSON.stringify(preview));
+  const texts = segs.map(s => (s.text || "").trim()).filter(Boolean);
+  if (!texts.length) return;
 
-  const full = preview.join(" ").toLowerCase();
-  if (!full) return;
+
+  log("segs: " + JSON.stringify(texts.slice(-6)));
+
+  const full = texts.join(" ").toLowerCase();
 
   let key = null;
   if (full.includes("weak")) key = "weak";
@@ -94,7 +111,6 @@ function readChatbox() {
   }
 }
 
-// Bind chat, then start loop
 setTimeout(() => {
   const h = setInterval(() => {
     try {
@@ -103,7 +119,7 @@ setTimeout(() => {
         reader.find();
       } else {
         clearInterval(h);
-        // select first (top-most) chat pane
+
         reader.pos.mainbox = reader.pos.boxes[0];
         log("✅ chatbox found");
         showSelected(reader.pos);
