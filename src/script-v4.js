@@ -25,30 +25,9 @@ if (window.alt1) {
 // Create a chatbox reader
 const reader = new Chatbox.default();
 
-// Build a wide lime palette (RGB where R≈B and G≈255) to catch "Grovel", "Weak", "Pathetic"
-function buildLimeSweep() {
-    const out = [];
-    for (let rb = 120; rb <= 200; rb += 4) {
-        for (let g = 248; g <= 255; g += 1) {
-            out.push(A1lib.mixColor(rb, g, rb));
-        }
-    }
-    return out;
-}
-const LIME_SWEEP = buildLimeSweep();
-
-// Common UI colours for the rest of the chat line
-const COMMON = [
-    A1lib.mixColor(69, 131, 145),   // Amascut name cyan
-    A1lib.mixColor(255, 255, 255),  // white
-    A1lib.mixColor(127, 169, 255),  // blue (public)
-    A1lib.mixColor(67, 188, 188),   // teal/system
-    A1lib.mixColor(255, 255, 0),    // yellow
-    A1lib.mixColor(235, 47, 47),    // red
-];
-
+// Simple readargs for all colors
 reader.readargs = {
-    colors: [...LIME_SWEEP, ...COMMON],
+    colors: A1lib.mixColor(255, 255, 255),
     backwards: true
 };
 
@@ -87,12 +66,11 @@ function readChatbox() {
     }
     if (!segs.length) return;
 
-    // Log all segments with color
+    // Log all segments
     for (const s of segs) {
         const t = (s.text || "").trim();
         if (!t) continue;
-        const c = A1lib.decodeColor(s.color);
-        log(`SEG: "${t}" rgb=(${c.r},${c.g},${c.b})`);
+        log(`SEG: "${t}"`);
     }
 
     const full = segs.map(s => (s.text || "").trim()).filter(Boolean).join(" ").toLowerCase();
