@@ -1,7 +1,5 @@
-// Identify this app with Alt1
 A1lib.identifyApp("appconfig.json");
 
-// tiny logger -> page + console
 function log(msg) {
   console.log(msg);
   const out = document.getElementById("output");
@@ -9,10 +7,9 @@ function log(msg) {
   const d = document.createElement("div");
   d.textContent = msg;
   out.prepend(d);
-  while (out.childElementCount > 80) out.removeChild(out.lastChild);
+  while (out.childElementCount > 50) out.removeChild(out.lastChild);
 }
 
-// In-browser: show add link. In Alt1: register app URL.
 if (window.alt1) {
   alt1.identifyAppUrl("./appconfig.json");
 } else {
@@ -21,36 +18,34 @@ if (window.alt1) {
     `Alt1 not detected, click <a href="alt1://addapp/${url}">here</a> to add this app.`;
 }
 
-// Chatbox reader
 const reader = new Chatbox.default();
 
-// lime greens for Weak/Grovel/Pathetic
-const LIME_GREENS = [
-  A1lib.mixColor(145,255,145),
-  A1lib.mixColor(148,255,148),
-  A1lib.mixColor(150,255,150),
-  A1lib.mixColor(153,255,153),
-  A1lib.mixColor(156,255,156),
-  A1lib.mixColor(159,255,159),
-  A1lib.mixColor(162,255,162),
-];
+// Build a wider lime sweep to catch all shades
+function buildLimeSweep() {
+  const out = [];
+  for (let rb = 80; rb <= 200; rb += 2) {
+    for (let g = 240; g <= 255; g++) {
+      out.push(A1lib.mixColor(rb, g, rb));
+    }
+  }
+  return out;
+}
+const LIME_GREENS = buildLimeSweep();
 
-// a few general chat colors to help OCR segment lines
+// Some general chat colours that help the OCR produce segments reliably
 const GENERAL_CHAT = [
-  A1lib.mixColor(255,255,255),   // white
-  A1lib.mixColor(127,169,255),   // public chat blue
-  A1lib.mixColor(102,152,255),   // drops blue
-  A1lib.mixColor(67,188,188),    // teal / system
-  A1lib.mixColor(255,255,0),     // yellow
-  A1lib.mixColor(235,47,47),     // red
+  A1lib.mixColor(255, 255, 255),  // white
+  A1lib.mixColor(127, 169, 255),  // public chat blue
+  A1lib.mixColor(102, 152, 255),  // drops blue
+  A1lib.mixColor(67, 188, 188),   // teal/system
+  A1lib.mixColor(255, 255, 0),    // yellow
+  A1lib.mixColor(235, 47, 47),    // red
 ];
 
 reader.readargs = {
   colors: [...LIME_GREENS, ...GENERAL_CHAT],
   backwards: true
 };
-
-log(`OCR color list size: ${reader.readargs.colors.length}`);
 
 const RESPONSES = {
   weak:     "Range > Magic > Melee",
@@ -85,18 +80,19 @@ let lastAt = 0;
 
 function readChatbox() {
   let segs = [];
-  try {
-    segs = reader.read() || [];
-  } catch (e) {
+  try { segs = reader.read() || []; } catch (e) {
     log("⚠️ reader.read() failed; check Alt1 Pixel permission.");
     return;
   }
   if (!segs.length) return;
 
-  const texts = segs.map(s => (s.text || "").trim()).filter(Boolean);
+  const texts = segs
+    .map(s => (s.text || "").trim())
+    .filter(Boolean)
+    .filter(t => !(t.startsWith("[") && t.endsWith("]"))); // remove timestamps
+
   if (!texts.length) return;
 
-  // dump a few recent segments so we can see OCR output
   log("segs: " + JSON.stringify(texts.slice(-6)));
 
   const full = texts.join(" ").toLowerCase();
@@ -118,7 +114,6 @@ function readChatbox() {
   }
 }
 
-// find chatbox, then poll
 setTimeout(() => {
   const h = setInterval(() => {
     try {
@@ -127,7 +122,6 @@ setTimeout(() => {
         reader.find();
       } else {
         clearInterval(h);
-        // choose the top-most box
         reader.pos.mainbox = reader.pos.boxes[0];
         log("✅ chatbox found");
         showSelected(reader.pos);
