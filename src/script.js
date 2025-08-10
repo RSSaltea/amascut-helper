@@ -312,13 +312,13 @@ function onAmascutLine(full, lineId) {
   if (key === "tear") {
     let first = "none"; 
     if (SETTINGS.role === "DPS" && SETTINGS.bend === "Voke") first = "voke";
-    else if (SETTINGS.role === "Base" && SETTINGS.bend === "Immort") first = "immort";
+    else if (SETTINGS.role === "Base" && SETTINGS.bend === "Immort") first = "Immort";
 
-    const firstDuration = (first === "voke" || first === "immort") ? 8 : 0;
+    const firstDuration = (first === "voke" || first === "Immort") ? 8 : 0;
 
     if (first === "voke") {
       startCountdown("Voke → Reflect", 8);
-    } else if (first === "immort") {
+    } else if (first === "Immort") {
       startCountdown("Immortality", 8);
     } 
 
