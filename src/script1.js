@@ -276,6 +276,30 @@ let lastSig = "";
 let lastAt = 0;
 
 function onAmascutLine(full, lineId) {
+  // --- NEW: ignore lines older than 2 minutes based on [HH:MM] or [HH:MM:SS] ---
+  try {
+    const m = lineId && lineId.match(/^\s*\[(\d{1,2}):(\d{2})(?::(\d{2}))?\]/);
+    if (m) {
+      const now = new Date();
+      const hh = parseInt(m[1], 10);
+      const mm = parseInt(m[2], 10);
+      const ss = m[3] ? parseInt(m[3], 10) : 0;
+
+      let msgTime = new Date(now);
+      msgTime.setHours(hh, mm, ss, 0);
+
+      // handle just-after-midnight wrap (e.g., timestamp ahead of "now" by >5 min → previous day)
+      if (msgTime.getTime() - now.getTime() > 5 * 60 * 1000) {
+        msgTime.setDate(msgTime.getDate() - 1);
+      }
+
+      if (now.getTime() - msgTime.getTime() > 2 * 60 * 1000) {
+        return; // too old → don't trigger
+      }
+    }
+  } catch { /* ignore parsing issues and continue */ }
+  // --- END NEW ---
+
   if (lineId && seenLineIds.has(lineId)) return;
   if (lineId) {
     seenLineIds.add(lineId);
@@ -303,11 +327,11 @@ function onAmascutLine(full, lineId) {
 
   if (!key) return;
 
-  const now = Date.now();
+  const nowTs = Date.now();
   const sig = key + "|" + raw.slice(-80);
-  if (sig === lastSig && now - lastAt < 1200) return;
+  if (sig === lastSig && nowTs - lastAt < 1200) return;
   lastSig = sig;
-  lastAt = now;
+  lastAt = nowTs;
 
   if (key === "tear") {
     let first = "none"; 
@@ -328,11 +352,11 @@ function onAmascutLine(full, lineId) {
       if (SETTINGS.scarabs === "Barricade") {
         let barricadeTime;
         if (SETTINGS.role === "Base" && SETTINGS.bend === "Immort") {
-          barricadeTime = 9;
+          barricadeTime = 9;     // Base + Immort → 9s
         } else if (SETTINGS.role === "Base") {
-          barricadeTime = 18;
+          barricadeTime = 18;    // Base + Voke
         } else {
-          barricadeTime = 10;
+          barricadeTime = 10;    // DPS
         }
 
         startCountdown("Barricade", barricadeTime);
@@ -404,7 +428,6 @@ function onAmascutLine(full, lineId) {
     }
   }
 }
-
 
 function readChatbox() {
   let segs = [];
