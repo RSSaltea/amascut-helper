@@ -23,6 +23,24 @@ if (window.alt1) {
 const seenLineIds = new Set();
 const seenLineQueue = [];
 
+// === [ADD] Timestamp-based de-dupe storage/helpers ===
+const processedTs = new Set();
+const processedTsQueue = [];
+const MAX_TS = 200;
+function extractTimestamp(s) {
+  const m = s && s.match(/\[(\d{1,2}:\d{2})\]/);
+  return m ? m[1] : null;
+}
+function markTsDone(ts) {
+  processedTs.add(ts);
+  processedTsQueue.push(ts);
+  if (processedTsQueue.length > MAX_TS) {
+    const old = processedTsQueue.shift();
+    processedTs.delete(old);
+  }
+}
+// === [END ADD] ===
+
 let countdownTimers = [];
 let resetTimerId = null;
 
@@ -276,6 +294,14 @@ let lastSig = "";
 let lastAt = 0;
 
 function onAmascutLine(full, lineId) {
+  // --- [ADD] timestamp de-dupe guard ---
+  const ts = extractTimestamp(lineId);
+  if (ts && processedTs.has(ts)) {
+    log(`(skip) already handled ts ${ts}`);
+    return;
+  }
+  // --- [END ADD] ---
+
   if (lineId && seenLineIds.has(lineId)) return;
   if (lineId) {
     seenLineIds.add(lineId);
@@ -308,6 +334,11 @@ function onAmascutLine(full, lineId) {
   if (sig === lastSig && now - lastAt < 1200) return;
   lastSig = sig;
   lastAt = now;
+
+  // --- [ADD] mark timestamp as handled only once we will act ---
+  const ts2 = extractTimestamp(lineId);
+  if (ts2) markTsDone(ts2);
+  // --- [END ADD] ---
 
   if (key === "tear") {
     let first = "none"; 
@@ -485,6 +516,14 @@ try {
 
 // [ADD] Handle Tumeken’s “(player) shield us from her shadow…” line
 function onTumekenLine(full, lineId) {
+  // --- [ADD] timestamp de-dupe guard ---
+  const ts = extractTimestamp(lineId);
+  if (ts && processedTs.has(ts)) {
+    log(`(skip) already handled ts ${ts}`);
+    return;
+  }
+  // --- [END ADD] ---
+
   if (lineId && seenLineIds.has(lineId)) return;
   if (lineId) {
     seenLineIds.add(lineId);
@@ -508,6 +547,11 @@ function onTumekenLine(full, lineId) {
   if (sig === lastSig && now - lastAt < 1200) return;
   lastSig = sig;
   lastAt = now;
+
+  // --- [ADD] mark timestamp as handled since we will act ---
+  const ts2 = extractTimestamp(lineId);
+  if (ts2) markTsDone(ts2);
+  // --- [END ADD] ---
 
   showSingleRow(player);
   countdownTimers.push(setTimeout(() => {
