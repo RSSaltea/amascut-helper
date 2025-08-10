@@ -405,14 +405,6 @@ function onAmascutLine(full, lineId) {
   }
 }
 
-/* ============================
-   Watermark + stitched-id helpers
-   ============================ */
-let lastWatermarkAmascut = null;
-let lastWatermarkTumeken = null;
-function makeKey(full) {
-  return full.replace(/\s+/g, " ").trim();
-}
 
 function readChatbox() {
   let segs = [];
@@ -420,7 +412,6 @@ function readChatbox() {
   catch (e) { log("⚠️ reader.read() failed; enable Pixel permission in Alt1."); return; }
   if (!segs.length) return;
 
-  const newlySeen = [];
   for (let i = 0; i < segs.length; i++) {
     const seg = segs[i];
     if (!seg.fragments || seg.fragments.length === 0) continue;
@@ -443,23 +434,12 @@ function readChatbox() {
       }
     }
 
-    if (!full) continue;
-
-    const key = makeKey(full);
-    if (lastWatermarkAmascut && key === lastWatermarkAmascut) break;
-
-    newlySeen.push({ full, key });
+    if (full) {
+      log(full);
+      const lineId = seg.text.trim();
+      onAmascutLine(full, lineId);
+    }
   }
-
-  if (!newlySeen.length) return;
-
-  for (let k = newlySeen.length - 1; k >= 0; k--) {
-    const { full, key } = newlySeen[k];
-    log(full);
-    onAmascutLine(full, key); // stitched text as lineId
-  }
-
-  lastWatermarkAmascut = newlySeen[0].key;
 }
 
 resetUI();
@@ -543,11 +523,11 @@ function readChatboxTumeken() {
   catch (e) { log("⚠️ reader.read() failed; enable Pixel permission in Alt1."); return; }
   if (!segs.length) return;
 
-  const newlySeen = [];
   for (let i = 0; i < segs.length; i++) {
     const seg = segs[i];
     if (!seg.fragments || seg.fragments.length === 0) continue;
 
+    // Confirm the speaker is Tumeken
     if (!/Tumeken/i.test(seg.text)) continue;
 
     // Build the full spoken text (strip "Tumeken:" + stitch following green lines)
@@ -568,24 +548,13 @@ function readChatboxTumeken() {
     }
 
     if (!full) continue;
-    if (!/shield us from her shadow/i.test(full)) continue;
 
-    const key = makeKey(full);
-    if (lastWatermarkTumeken && key === lastWatermarkTumeken) break;
-
-    newlySeen.push({ full, key });
+    if (/shield us from her shadow/i.test(full)) {
+      log("Tumeken says: " + full);
+      const lineId = seg.text.trim();
+      onTumekenLine(full, lineId);
+    }
   }
-
-  if (!newlySeen.length) return;
-
-  // process oldest→newest
-  for (let k = newlySeen.length - 1; k >= 0; k--) {
-    const { full, key } = newlySeen[k];
-    log("Tumeken says: " + full);
-    onTumekenLine(full, key); // stitched text as lineId
-  }
-
-  lastWatermarkTumeken = newlySeen[0].key;
 }
 
 // [ADD] Start Tumeken polling loop (kept separate)
