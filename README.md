@@ -37,8 +37,8 @@ In addition to standard mechanics, this app also handles Hardmode deity location
 
 ## Installation
 
-1. **Click to install in Alt1:**  
-   - [alt1://addapp/https://rssaltea.github.io/amascut-helper/appconfig.json](alt1://addapp/https://rssaltea.github.io/amascut-helper/appconfig.json)
+1. **Copy this into your browser to install in Alt1:**  
+   - `alt1://addapp/https://rssaltea.github.io/amascut-helper/appconfig.json`
 
 2. **Manual install:**
    - Download this repo or the app folder.
