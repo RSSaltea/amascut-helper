@@ -23,16 +23,58 @@ const seenLineIds = new Set();
 const seenLineQueue = [];
 
 let resetTimerId = null;
+let lastDisplayAt = 0; // track last time we displayed something (for 10s window)
 
-function showSingleRow(text) {
+/* --- Logs visibility toggle (no settings panel) --- */
+(function injectLogsToggle(){
+  const style = document.createElement("style");
+  style.textContent = `
+    .ah-logs-toggle{position:fixed;top:6px;right:8px;z-index:11000;font-size:12px;opacity:.85;background:#222;
+      border:1px solid #444;border-radius:4px;cursor:pointer;padding:4px 8px;line-height:1;}
+    .ah-logs-toggle:hover{opacity:1}
+    .logs-hidden #output{display:none !important}
+  `;
+  document.head.appendChild(style);
+
+  const btn = document.createElement("button");
+  btn.className = "ah-logs-toggle";
+  btn.id = "ah-logs-toggle";
+  btn.textContent = "📝 Logs: On";
+  document.body.appendChild(btn);
+
+  const saved = localStorage.getItem("amascut.logsVisible");
+  const visible = saved === null ? true : saved === "true";
+  document.body.classList.toggle("logs-hidden", !visible);
+  btn.textContent = `📝 Logs: ${visible ? "On" : "Off"}`;
+
+  btn.addEventListener("click", () => {
+    const nowVisible = document.body.classList.toggle("logs-hidden") ? false : true;
+    document.body.classList.toggle("logs-hidden", !nowVisible);
+    btn.textContent = `📝 Logs: ${nowVisible ? "On" : "Off"}`;
+    try { localStorage.setItem("amascut.logsVisible", String(nowVisible)); } catch {}
+  });
+})();
+
+/* --- UI helpers --- */
+
+function autoResetIn10s() {
+  if (resetTimerId) clearTimeout(resetTimerId);
+  resetTimerId = setTimeout(() => {
+    resetUI();
+    log("↺ UI reset");
+  }, 10000);
+  lastDisplayAt = Date.now();
+}
+
+function resetUI() {
   const rows = document.querySelectorAll("#spec tr");
 
   if (rows[0]) {
     const c0 = rows[0].querySelector("td");
-    if (c0) c0.textContent = text;
-    rows[0].style.display = "table-row";
-    rows[0].classList.remove("role-range", "role-magic", "role-melee");
-    rows[0].classList.add("selected", "callout", "flash");
+    if (c0) c0.textContent = "Waiting...";
+    rows[0].style.display = "";
+    rows[0].classList.remove("role-range", "role-magic", "role-melee", "callout", "flash");
+    rows[0].classList.add("selected");
   }
 
   for (let i = 1; i < rows.length; i++) {
@@ -41,39 +83,55 @@ function showSingleRow(text) {
     rows[i].style.display = "none";
     rows[i].classList.remove("role-range", "role-magic", "role-melee", "selected", "callout", "flash");
   }
+}
+
+/* Show a line in single-line mode; if another line comes within 10s, add a second line instead of overwriting */
+function showMessage(text) {
+  const rows = document.querySelectorAll("#spec tr");
+  if (!rows.length) return;
+
+  const withinWindow = Date.now() - lastDisplayAt <= 10000;
+
+  // Prepare simple-display mode (no role coloring)
+  for (let i = 0; i < rows.length; i++) {
+    rows[i].classList.remove("role-range", "role-magic", "role-melee");
+    rows[i].classList.remove("callout", "flash");
+  }
+
+  if (!withinWindow) {
+    // First line (fresh)
+    if (rows[0]) {
+      const c0 = rows[0].querySelector("td");
+      if (c0) c0.textContent = text;
+      rows[0].style.display = "table-row";
+      rows[0].classList.add("selected", "callout", "flash");
+    }
+    // hide others
+    for (let i = 1; i < rows.length; i++) {
+      const c = rows[i].querySelector("td");
+      if (c) c.textContent = "";
+      rows[i].style.display = "none";
+      rows[i].classList.remove("selected");
+    }
+  } else {
+    // Second line if available
+    if (rows[1]) {
+      const c1 = rows[1].querySelector("td");
+      if (c1) c1.textContent = text;
+      rows[1].style.display = "table-row";
+      rows[1].classList.add("selected", "callout", "flash");
+    } else {
+      // Fallback: overwrite first row if only one row exists
+      const c0 = rows[0].querySelector("td");
+      if (c0) c0.textContent = text;
+    }
+  }
 
   log(`✅ ${text}`);
+  autoResetIn10s();
 }
 
-function autoResetIn10s() {
-  if (resetTimerId) clearTimeout(resetTimerId);
-  resetTimerId = setTimeout(() => {
-    resetUI();
-    log("↺ UI reset");
-  }, 10000);
-}
-
-const reader = new Chatbox.default();
-const NAME_RGB = [69, 131, 145];
-const TEXT_RGB = [153, 255, 153];
-const WHITE_RGB = [255, 255, 255];
-const PUB_BLUE = [127, 169, 255];
-
-function isColorNear(rgb, target, tol = 10) {
-  return Math.abs(rgb[0] - target[0]) <= tol &&
-         Math.abs(rgb[1] - target[1]) <= tol &&
-         Math.abs(rgb[2] - target[2]) <= tol;
-}
-
-reader.readargs = {
-  colors: [
-    A1lib.mixColor(...NAME_RGB),
-    A1lib.mixColor(...TEXT_RGB),
-    A1lib.mixColor(...WHITE_RGB),
-    A1lib.mixColor(...PUB_BLUE),
-  ],
-  backwards: true
-};
+/* --- Weak/Pathetic/Grovel order UI (unchanged) --- */
 
 const RESPONSES = {
   weak:     "Range > Magic > Melee",
@@ -104,28 +162,32 @@ function updateUI(key) {
   });
 
   log(`✅ ${RESPONSES[key]}`);
-
   autoResetIn10s();
 }
 
-function resetUI() {
-  const rows = document.querySelectorAll("#spec tr");
+/* --- Chat reading (unchanged) --- */
 
-  if (rows[0]) {
-    const c0 = rows[0].querySelector("td");
-    if (c0) c0.textContent = "Waiting...";
-    rows[0].style.display = "";
-    rows[0].classList.remove("role-range", "role-magic", "role-melee", "callout", "flash");
-    rows[0].classList.add("selected");
-  }
+const reader = new Chatbox.default();
+const NAME_RGB = [69, 131, 145];
+const TEXT_RGB = [153, 255, 153];
+const WHITE_RGB = [255, 255, 255];
+const PUB_BLUE = [127, 169, 255];
 
-  for (let i = 1; i < rows.length; i++) {
-    const c = rows[i].querySelector("td");
-    if (c) c.textContent = "";
-    rows[i].style.display = "none";
-    rows[i].classList.remove("role-range", "role-magic", "role-melee", "selected", "callout", "flash");
-  }
+function isColorNear(rgb, target, tol = 10) {
+  return Math.abs(rgb[0] - target[0]) <= tol &&
+         Math.abs(rgb[1] - target[1]) <= tol &&
+         Math.abs(rgb[2] - target[2]) <= tol;
 }
+
+reader.readargs = {
+  colors: [
+    A1lib.mixColor(...NAME_RGB),
+    A1lib.mixColor(...TEXT_RGB),
+    A1lib.mixColor(...WHITE_RGB),
+    A1lib.mixColor(...PUB_BLUE),
+  ],
+  backwards: true
+};
 
 function firstNonWhiteColor(seg) {
   if (!seg.fragments) return null;
@@ -135,7 +197,7 @@ function firstNonWhiteColor(seg) {
   return null;
 }
 
-/* ===== Removed settings/roles/Bend/Voke/Cade logic entirely ===== */
+/* --- Line handling --- */
 
 let lastSig = "";
 let lastAt = 0;
@@ -155,16 +217,26 @@ function onAmascutLine(full, lineId) {
   const low = full.toLowerCase();
 
   let key = null;
-  if (raw.includes("Grovel")) key = "grovel";
-  else if (/\bWeak\b/.test(raw)) key = "weak";
+
+  // NEW: Phrase-specific checks FIRST to avoid clashing with generic "Weak"
+  if (low.includes("your soul is weak")) key = "soloWeakMagic";   // → Magic
+  else if (low.includes("all strength withers")) key = "soloMelee"; // → Melee
+  else if (low.includes("i will not suffer this")) key = "soloRange"; // → Range
+
+  // Existing order lines
+  else if (raw.includes("Grovel")) key = "grovel";
+  else if (/\bWeak\b/.test(raw)) key = "weak";            // keep generic Weak AFTER phrase-specific
   else if (raw.includes("Pathetic")) key = "pathetic";
-  else if (low.includes("tear them apart")) key = "tear";
-  else if (low.includes("bend the knee")) key = "bend"; // NEW
+
+  // Event calls
+  else if (low.includes("tear them apart")) key = "tear"; // → Scarabs + Bend...
+  else if (low.includes("bend the knee")) key = "bend";   // → Bend the Knee
+
+  // Gods (unchanged)
   else if (raw.includes("Crondis... It should have never come to this")) key = "crondis";
   else if (raw.includes("I'm sorry, Apmeken")) key = "apmeken";
   else if (raw.includes("Forgive me, Het")) key = "het";
   else if (raw.includes("Scabaras...")) key = "scabaras";
-  // intentionally removed: barricadeHeart / notSubjugated
 
   if (!key) return;
 
@@ -174,30 +246,25 @@ function onAmascutLine(full, lineId) {
   lastSig = sig;
   lastAt = now;
 
+  // Display logic
   if (key === "tear") {
-    showSingleRow("Scarabs");
-    autoResetIn10s();
-
+    showMessage("Scarabs + Bend the knee shortly");
   } else if (key === "bend") {
-    showSingleRow("Bend the Knee");
-    autoResetIn10s();
-
+    showMessage("Bend the Knee");
   } else if (key === "crondis") {
-    showSingleRow("Crondis (SE)");
-    autoResetIn10s();
-
+    showMessage("Crondis (SE)");
   } else if (key === "apmeken") {
-    showSingleRow("Apmeken (NW)");
-    autoResetIn10s();
-
+    showMessage("Apmeken (NW)");
   } else if (key === "het") {
-    showSingleRow("Het (SW)");
-    autoResetIn10s();
-
+    showMessage("Het (SW)");
   } else if (key === "scabaras") {
-    showSingleRow("Scabaras (NE)");
-    autoResetIn10s();
-
+    showMessage("Scabaras (NE)");
+  } else if (key === "soloWeakMagic") {
+    showMessage("Magic");
+  } else if (key === "soloMelee") {
+    showMessage("Melee");
+  } else if (key === "soloRange") {
+    showMessage("Range");
   } else {
     // weak / grovel / pathetic — keep the same behavior
     updateUI(key);
@@ -240,6 +307,7 @@ function readChatbox() {
   }
 }
 
+/* --- Init --- */
 resetUI();
 
 setTimeout(() => {
