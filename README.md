@@ -7,14 +7,8 @@ This tool listens to in-game chat for Amascut's special callouts and provides cl
 
 ## Features
 
-- **Hardmode Specific** – This app is tailored for Hardmode Amascut mechanics only.
-- **Mechanic Callouts** – Detects chat lines from Amascut and shows the corresponding priority order, location, or ability you should use.
-- **Countdown Timers** – Displays timers for critical abilities such as Barricade, Voke → Reflect, and Immortality.
-- **Custom Settings Panel** – Configure:
-  - Your role (`DPS` or `Base`)
-  - How you handle *Bend the Knee* (`Voke` or `Immort`)
-  - How you handle *Scarabs* (`Barricade` or `Dive`)
-  - Toggle in-game log output
+- **Hardmode Specific** – This app is tailored for Hardmode Amascut mechanics only. It may work in Normal Mode but it has not been tested in Normal Mode.
+- **Mechanic Callouts** – Detects chat lines from Amascut and shows the corresponding priority order.
 - **Lightweight & Non-Intrusive** – No imports, integrates directly with your HTML.
 
 ---
@@ -24,7 +18,7 @@ This tool listens to in-game chat for Amascut's special callouts and provides cl
 1. **Finds Your Chatbox** – The app locates your RuneScape chatbox in Alt1.
 2. **Reads Specific Colors** – It listens for Amascut's lines using the known chat color codes.
 3. **Matches Trigger Phrases** – Each mechanic is tied to a specific trigger phrase in Amascut's dialogue.
-4. **Displays Instructions** – The UI updates instantly with what you need to do, sometimes with a countdown.
+4. **Displays Instructions** – The UI updates instantly with what mechanic it is, sometimes with a countdown.
 
 ---
 
@@ -67,7 +61,7 @@ In addition to standard mechanics, this app also handles Hardmode deity location
 
 ## Notes
 
-- This is **Hardmode only** – some mechanics and timings differ in Normal mode.
+- This is **Hardmode only** – some mechanics differ from Normal Mode.
 - For **any issues, questions, or suggestions**, please DM **`.saltea`** on Discord.
 
 ---
