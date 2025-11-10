@@ -1,7 +1,6 @@
 A1lib.identifyApp("appconfig.json");
 
 function log(msg) {
-  if (typeof SETTINGS !== "undefined" && !SETTINGS.logs) return;
   try {
     console.log(msg);
     const out = document.getElementById("output");
@@ -23,17 +22,7 @@ if (window.alt1) {
 const seenLineIds = new Set();
 const seenLineQueue = [];
 
-let countdownTimers = [];
 let resetTimerId = null;
-
-function cancelCountdowns() {
-  if (startCountdown._interval) {
-    clearInterval(startCountdown._interval);
-    startCountdown._interval = null;
-  }
-  countdownTimers.forEach(clearTimeout);
-  countdownTimers = [];
-}
 
 function showSingleRow(text) {
   const rows = document.querySelectorAll("#spec tr");
@@ -56,30 +45,12 @@ function showSingleRow(text) {
   log(`✅ ${text}`);
 }
 
-function startCountdown(label, seconds) {
-  cancelCountdowns();
-  if (resetTimerId) { clearTimeout(resetTimerId); resetTimerId = null; }
-
-  let remaining = seconds;
-
-  function render() {
-    if (remaining > 1) {
-      showSingleRow(`${label} (${remaining})`);
-    } else if (remaining === 1) {
-      showSingleRow(label.toUpperCase());
-    }
-  }
-
-  render();
-  startCountdown._interval = setInterval(() => {
-    remaining -= 1;
-    if (remaining >= 1) {
-      render();
-    } else {
-      clearInterval(startCountdown._interval);
-      startCountdown._interval = null;
-    }
-  }, 1000);
+function autoResetIn10s() {
+  if (resetTimerId) clearTimeout(resetTimerId);
+  resetTimerId = setTimeout(() => {
+    resetUI();
+    log("↺ UI reset");
+  }, 10000);
 }
 
 const reader = new Chatbox.default();
@@ -111,8 +82,6 @@ const RESPONSES = {
 };
 
 function updateUI(key) {
-  cancelCountdowns();
-
   const order = RESPONSES[key].split(" > ");
   const rows = document.querySelectorAll("#spec tr");
 
@@ -126,7 +95,6 @@ function updateUI(key) {
     if (cell) cell.textContent = role;
 
     row.classList.remove("callout", "flash");
-
     row.classList.remove("role-range", "role-magic", "role-melee");
     if (role === "Range") row.classList.add("role-range");
     else if (role === "Magic") row.classList.add("role-magic");
@@ -137,11 +105,7 @@ function updateUI(key) {
 
   log(`✅ ${RESPONSES[key]}`);
 
-  if (resetTimerId) clearTimeout(resetTimerId);
-  resetTimerId = setTimeout(() => {
-    resetUI();
-    log("↺ UI reset");
-  }, 6000);
+  autoResetIn10s();
 }
 
 function resetUI() {
@@ -171,106 +135,7 @@ function firstNonWhiteColor(seg) {
   return null;
 }
 
-const SETTINGS_DEFAULT = {
-  role: "Base",         
-  bend: "Voke",         
-  scarabs: "Barricade", 
-  logs: false           
-};
-
-
-function loadSettings() {
-  try {
-    const s = JSON.parse(localStorage.getItem("amascut.settings") || "null");
-    return Object.assign({}, SETTINGS_DEFAULT, s || {});
-  } catch {
-    return { ...SETTINGS_DEFAULT };
-  }
-}
-
-function saveSettings(s) {
-  try { localStorage.setItem("amascut.settings", JSON.stringify(s)); } catch {}
-}
-
-let SETTINGS = loadSettings();
-
-(function injectSettingsUI(){
-  const style = document.createElement("style");
-  style.textContent = `
-    .ah-cog{position:fixed;top:6px;right:8px;z-index:11000;font-size:16px;opacity:.8;background:#222;
-      border:1px solid #444;border-radius:4px;cursor:pointer;padding:4px 6px;line-height:1;}
-    .ah-cog:hover{opacity:1}
-    .ah-panel{position:fixed;top:30px;right:8px;z-index:11000;background:#1b1b1b;border:1px solid #444;
-      border-radius:6px;padding:8px 10px;min-width:220px;box-shadow:0 4px 12px rgba(0,0,0,.5);display:none}
-    .ah-row{display:flex;align-items:center;gap:8px;margin:6px 0}
-    .ah-row label{min-width:95px;font-size:12px;opacity:.9}
-    .ah-panel select{flex:1;background:#111;color:#fff;border:1px solid #555;border-radius:4px;padding:3px}
-    .ah-tip{border-bottom:1px dotted #aaa;cursor:help}
-  `;
-  document.head.appendChild(style);
-
-  const cog = document.createElement("button");
-  cog.className = "ah-cog";
-  cog.title = "Settings";
-  cog.textContent = "⚙️";
-  document.body.appendChild(cog);
-
-  const panel = document.createElement("div");
-  panel.className = "ah-panel";
-panel.innerHTML = `
-  <div class="ah-row">
-    <label>Role</label>
-    <select id="ah-role">
-      <option value="DPS">DPS</option>
-      <option value="Base">Base</option>
-    </select>
-  </div>
-  <div class="ah-row">
-    <label><span class="ah-tip" title="How do you plan to deal with Bend the knee mechanic?">Bend the knee</span></label>
-    <select id="ah-bend">
-      <option value="Voke">Voke</option>
-      <option value="Immort">Immort</option>
-    </select>
-  </div>
-  <div class="ah-row">
-    <label><span class="ah-tip" title="How do you plan to deal with Scarabs?">Scarabs</span></label>
-    <select id="ah-scarabs">
-      <option value="Barricade">Barricade</option>
-      <option value="Dive">Dive</option>
-    </select>
-  </div>
-  <div class="ah-row">
-    <label>Logs</label>
-    <input type="checkbox" id="ah-logs">
-  </div>
-`;
-  document.body.appendChild(panel);
-
-panel.querySelector("#ah-role").value = SETTINGS.role;
-panel.querySelector("#ah-bend").value = SETTINGS.bend;
-panel.querySelector("#ah-scarabs").value = SETTINGS.scarabs;
-panel.querySelector("#ah-logs").checked = SETTINGS.logs;
-
-  cog.addEventListener("click", () => {
-    panel.style.display = panel.style.display === "none" ? "block" : "none";
-  });
-function updateFromUI(){
-  SETTINGS.role = panel.querySelector("#ah-role").value;
-  SETTINGS.bend = panel.querySelector("#ah-bend").value;
-  SETTINGS.scarabs = panel.querySelector("#ah-scarabs").value;
-  SETTINGS.logs = panel.querySelector("#ah-logs").checked;
-  saveSettings(SETTINGS);
-
-  if (!SETTINGS.logs) {
-    const out = document.getElementById("output");
-    if (out) out.innerHTML = "";
-  }
-
-  log(`⚙️ Settings → role=${SETTINGS.role}, bend=${SETTINGS.bend}, scarabs=${SETTINGS.scarabs}, logs=${SETTINGS.logs}`);
-}
-
-  panel.addEventListener("change", updateFromUI);
-})();
+/* ===== Removed settings/roles/Bend/Voke/Cade logic entirely ===== */
 
 let lastSig = "";
 let lastAt = 0;
@@ -286,20 +151,20 @@ function onAmascutLine(full, lineId) {
     }
   }
 
-  const raw = full;               
-  const low = full.toLowerCase(); 
+  const raw = full;
+  const low = full.toLowerCase();
 
   let key = null;
   if (raw.includes("Grovel")) key = "grovel";
   else if (/\bWeak\b/.test(raw)) key = "weak";
   else if (raw.includes("Pathetic")) key = "pathetic";
   else if (low.includes("tear them apart")) key = "tear";
-  else if (low.includes("tumeken's heart delivered")) key = "barricadeHeart";
-  else if (raw.includes("I WILL NOT BE SUBJUGATED")) key = "notSubjugated";
+  else if (low.includes("bend the knee")) key = "bend"; // NEW
   else if (raw.includes("Crondis... It should have never come to this")) key = "crondis";
   else if (raw.includes("I'm sorry, Apmeken")) key = "apmeken";
   else if (raw.includes("Forgive me, Het")) key = "het";
   else if (raw.includes("Scabaras...")) key = "scabaras";
+  // intentionally removed: barricadeHeart / notSubjugated
 
   if (!key) return;
 
@@ -310,97 +175,34 @@ function onAmascutLine(full, lineId) {
   lastAt = now;
 
   if (key === "tear") {
-    let first = "none"; 
-    if (SETTINGS.role === "DPS" && SETTINGS.bend === "Voke") first = "voke";
-    else if (SETTINGS.role === "Base" && SETTINGS.bend === "Immort") first = "immort";
+    showSingleRow("Scarabs");
+    autoResetIn10s();
 
-    const firstDuration = (first === "voke" || first === "immort") ? 8 : 0;
-
-    if (first === "voke") {
-      startCountdown("Voke → Reflect", 8);
-    } else if (first === "immort") {
-      startCountdown("Immortality", 8);
-    } 
-
-    const scarabDelayMs = (firstDuration ? (firstDuration + 2) : 2) * 1000;
-
-    countdownTimers.push(setTimeout(() => {
-      if (SETTINGS.scarabs === "Barricade") {
-        
-                      const barricadeTime = (SETTINGS.role === "Base" && SETTINGS.bend === "Immort") ? 8
-                     : (SETTINGS.role === "Base") ? 18
-                     : 10;
-
-        startCountdown("Barricade", barricadeTime);
-        countdownTimers.push(setTimeout(() => {
-          resetUI();
-          log("↺ UI reset");
-        }, barricadeTime * 1000));
-      } else {
-
-        showSingleRow("Dive");
-        countdownTimers.push(setTimeout(() => {
-          resetUI();
-          log("↺ UI reset");
-        }, 8000));
-      }
-    }, scarabDelayMs));
-
-  } else if (key === "barricadeHeart") {
-
-    startCountdown("Barricade", 12);
-    countdownTimers.push(setTimeout(() => {
-      resetUI();
-      log("↺ UI reset");
-    }, 12000));
-
-  } else if (key === "notSubjugated") {
-
-    showSingleRow("Magic Prayer → Devo → Reflect → Melee Prayer");
-    setTimeout(() => {
-      resetUI();
-      log("↺ UI reset");
-    }, 8000);
+  } else if (key === "bend") {
+    showSingleRow("Bend the Knee");
+    autoResetIn10s();
 
   } else if (key === "crondis") {
     showSingleRow("Crondis (SE)");
-    setTimeout(() => {
-      resetUI();
-      log("↺ UI reset");
-    }, 6000);
+    autoResetIn10s();
 
   } else if (key === "apmeken") {
     showSingleRow("Apmeken (NW)");
-    setTimeout(() => {
-      resetUI();
-      log("↺ UI reset");
-    }, 6000);
+    autoResetIn10s();
 
   } else if (key === "het") {
     showSingleRow("Het (SW)");
-    setTimeout(() => {
-      resetUI();
-      log("↺ UI reset");
-    }, 6000);
+    autoResetIn10s();
 
   } else if (key === "scabaras") {
     showSingleRow("Scabaras (NE)");
-    setTimeout(() => {
-      resetUI();
-      log("↺ UI reset");
-    }, 6000);
+    autoResetIn10s();
 
   } else {
-
-    if (SETTINGS.role === "Base") {
-      cancelCountdowns();
-      updateUI(key);
-    } else {
-      log(`(DPS mode) Ignored ${key}`);
-    }
+    // weak / grovel / pathetic — keep the same behavior
+    updateUI(key);
   }
 }
-
 
 function readChatbox() {
   let segs = [];
