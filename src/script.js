@@ -23,9 +23,11 @@ const seenLineIds = new Set();
 const seenLineQueue = [];
 
 let resetTimerId = null;
-let lastDisplayAt = 0; // track last time we displayed something (for 10s window)
-
-/* --- Logs visibility toggle (no settings panel) --- */
+let lastDisplayAt = 0; // for 10s window used by generic showMessage/updateUI
+let activeIntervals = []; // holds intervals for special timers so we can cancel them
+let activeTimeouts = [];  // holds timeouts for special timers so we can cancel them
+let snuffSeenForKill = false; // only first "snuffed out" per kill
+/* ========= Logs visibility toggle ========= */
 (function injectLogsToggle(){
   const style = document.createElement("style");
   style.textContent = `
@@ -48,14 +50,20 @@ let lastDisplayAt = 0; // track last time we displayed something (for 10s window
   btn.textContent = `📝 Logs: ${visible ? "On" : "Off"}`;
 
   btn.addEventListener("click", () => {
-    const nowVisible = document.body.classList.toggle("logs-hidden") ? false : true;
-    document.body.classList.toggle("logs-hidden", !nowVisible);
+    const nowHidden = document.body.classList.toggle("logs-hidden");
+    const nowVisible = !nowHidden;
     btn.textContent = `📝 Logs: ${nowVisible ? "On" : "Off"}`;
     try { localStorage.setItem("amascut.logsVisible", String(nowVisible)); } catch {}
   });
 })();
 
-/* --- UI helpers --- */
+/* ========= UI helpers ========= */
+function clearActiveTimers() {
+  activeIntervals.forEach(clearInterval);
+  activeTimeouts.forEach(clearTimeout);
+  activeIntervals = [];
+  activeTimeouts = [];
+}
 
 function autoResetIn10s() {
   if (resetTimerId) clearTimeout(resetTimerId);
@@ -67,6 +75,9 @@ function autoResetIn10s() {
 }
 
 function resetUI() {
+  clearActiveTimers();
+  if (resetTimerId) { clearTimeout(resetTimerId); resetTimerId = null; }
+
   const rows = document.querySelectorAll("#spec tr");
 
   if (rows[0]) {
@@ -85,28 +96,25 @@ function resetUI() {
   }
 }
 
-/* Show a line in single-line mode; if another line comes within 10s, add a second line instead of overwriting */
+/* Single/dual-line display for normal messages (unchanged behavior) */
 function showMessage(text) {
   const rows = document.querySelectorAll("#spec tr");
   if (!rows.length) return;
 
   const withinWindow = Date.now() - lastDisplayAt <= 10000;
 
-  // Prepare simple-display mode (no role coloring)
   for (let i = 0; i < rows.length; i++) {
     rows[i].classList.remove("role-range", "role-magic", "role-melee");
     rows[i].classList.remove("callout", "flash");
   }
 
   if (!withinWindow) {
-    // First line (fresh)
     if (rows[0]) {
       const c0 = rows[0].querySelector("td");
       if (c0) c0.textContent = text;
       rows[0].style.display = "table-row";
       rows[0].classList.add("selected", "callout", "flash");
     }
-    // hide others
     for (let i = 1; i < rows.length; i++) {
       const c = rows[i].querySelector("td");
       if (c) c.textContent = "";
@@ -114,14 +122,12 @@ function showMessage(text) {
       rows[i].classList.remove("selected");
     }
   } else {
-    // Second line if available
     if (rows[1]) {
       const c1 = rows[1].querySelector("td");
       if (c1) c1.textContent = text;
       rows[1].style.display = "table-row";
       rows[1].classList.add("selected", "callout", "flash");
     } else {
-      // Fallback: overwrite first row if only one row exists
       const c0 = rows[0].querySelector("td");
       if (c0) c0.textContent = text;
     }
@@ -131,8 +137,7 @@ function showMessage(text) {
   autoResetIn10s();
 }
 
-/* --- Weak/Pathetic/Grovel order UI (unchanged) --- */
-
+/* Weak/Pathetic/Grovel (unchanged) */
 const RESPONSES = {
   weak:     "Range > Magic > Melee",
   grovel:   "Magic > Melee > Range",
@@ -165,8 +170,7 @@ function updateUI(key) {
   autoResetIn10s();
 }
 
-/* --- Chat reading (unchanged) --- */
-
+/* ========= Chat reading (unchanged) ========= */
 const reader = new Chatbox.default();
 const NAME_RGB = [69, 131, 145];
 const TEXT_RGB = [153, 255, 153];
@@ -197,8 +201,75 @@ function firstNonWhiteColor(seg) {
   return null;
 }
 
-/* --- Line handling --- */
+/* ========= Special: Snuffed Out Timers ========= */
+/* Helpers to ensure rows are visible and to print on fixed rows */
+function setRow(i, text) {
+  const rows = document.querySelectorAll("#spec tr");
+  if (!rows[i]) return;
+  const cell = rows[i].querySelector("td");
+  if (cell) cell.textContent = text;
+  rows[i].style.display = "table-row";
+  rows[i].classList.add("selected", "callout", "flash");
+}
+function clearRow(i) {
+  const rows = document.querySelectorAll("#spec tr");
+  if (!rows[i]) return;
+  const cell = rows[i].querySelector("td");
+  if (cell) cell.textContent = "";
+  rows[i].style.display = "none";
+  rows[i].classList.remove("selected", "callout", "flash", "role-range", "role-magic", "role-melee");
+}
+/* format with one decimal (e.g., 14.4 → 14.4, 0.05 → 0.0) */
+function fmt(x) { return Math.max(0, x).toFixed(1); }
 
+/* Start both timers after first "snuffed out" of a kill */
+function startSnuffedTimers() {
+  clearActiveTimers();              // cancel any previous special timers
+  if (resetTimerId) { clearTimeout(resetTimerId); resetTimerId = null; } // don't auto-clear globally
+
+  // Ensure the first two rows are visible for the timers
+  setRow(0, "Swap side: 14.4s");
+  setRow(1, "Click in: 9.0s");
+
+  // --- Swap side: 14.4s, ticks 0.6s, then hide 10s AFTER reaching 0.0 ---
+  let swapRemaining = 14.4;
+  const swapIv = setInterval(() => {
+    swapRemaining -= 0.6;
+    if (swapRemaining <= 0) {
+      setRow(0, `Swap side: 0.0s`);
+      clearInterval(swapIv);
+      // after 10s, hide row 0 (do NOT reset entire UI; click-in may still be running)
+      const t = setTimeout(() => { clearRow(0); }, 10000);
+      activeTimeouts.push(t);
+    } else {
+      setRow(0, `Swap side: ${fmt(swapRemaining)}s`);
+    }
+  }, 600);
+  activeIntervals.push(swapIv);
+
+  // --- Click in: loop 9.0s → 0.0s → restart, ticks 0.6s until new dawn ---
+  let clickRemaining = 9.0;
+  const clickIv = setInterval(() => {
+    clickRemaining -= 0.6;
+    if (clickRemaining <= 0) {
+      setRow(1, `Click in: 0.0s`);
+      clickRemaining = 9.0; // restart immediately
+    } else {
+      setRow(1, `Click in: ${fmt(clickRemaining)}s`);
+    }
+  }, 600);
+  activeIntervals.push(clickIv);
+}
+
+/* Stop snuffed timers and clear both timer rows */
+function stopSnuffedTimersAndReset() {
+  clearActiveTimers();
+  clearRow(0);
+  clearRow(1);
+  resetUI(); // show "Waiting..." again
+}
+
+/* ========= Line handling ========= */
 let lastSig = "";
 let lastAt = 0;
 
@@ -213,26 +284,30 @@ function onAmascutLine(full, lineId) {
     }
   }
 
-  const raw = full;
-  const low = full.toLowerCase();
+  const raw = full;                // original case
+  const low = full.toLowerCase();  // ci matching
 
   let key = null;
 
-  // NEW: Phrase-specific checks FIRST to avoid clashing with generic "Weak"
-  if (low.includes("your soul is weak")) key = "soloWeakMagic";   // → Magic
-  else if (low.includes("all strength withers")) key = "soloMelee"; // → Melee
-  else if (low.includes("i will not suffer this")) key = "soloRange"; // → Range
+  // Phrase-specific checks (keep ahead of generic Weak)
+  if (low.includes("your soul is weak")) key = "soloWeakMagic";     // → Magic
+  else if (low.includes("all strength withers")) key = "soloMelee";  // → Melee
+  else if (low.includes("i will not suffer this")) key = "soloRange";// → Range
+
+  // Snuffed / New dawn (Amascut)
+  else if (low.includes("your light will be snuffed out")) key = "snuffed";
+  else if (low.includes("a new dawn")) key = "newdawn";
 
   // Existing order lines
   else if (raw.includes("Grovel")) key = "grovel";
-  else if (/\bWeak\b/.test(raw)) key = "weak";            // keep generic Weak AFTER phrase-specific
+  else if (/\bWeak\b/.test(raw)) key = "weak";
   else if (raw.includes("Pathetic")) key = "pathetic";
 
   // Event calls
-  else if (low.includes("tear them apart")) key = "tear"; // → Scarabs + Bend...
-  else if (low.includes("bend the knee")) key = "bend";   // → Bend the Knee
+  else if (low.includes("tear them apart")) key = "tear";    // → Scarabs + Bend...
+  else if (low.includes("bend the knee")) key = "bend";      // → Bend the Knee
 
-  // Gods (unchanged)
+  // Gods
   else if (raw.includes("Crondis... It should have never come to this")) key = "crondis";
   else if (raw.includes("I'm sorry, Apmeken")) key = "apmeken";
   else if (raw.includes("Forgive me, Het")) key = "het";
@@ -247,6 +322,24 @@ function onAmascutLine(full, lineId) {
   lastAt = now;
 
   // Display logic
+  if (key === "snuffed") {
+    if (!snuffSeenForKill) {
+      snuffSeenForKill = true;
+      log("⚡ Snuffed out detected — starting timers");
+      startSnuffedTimers();
+    } else {
+      log("(snuffed) already running this kill; ignored");
+    }
+    return;
+  }
+
+  if (key === "newdawn") {
+    log("🌅 A new dawn — resetting timers");
+    snuffSeenForKill = false;
+    stopSnuffedTimersAndReset();
+    return;
+  }
+
   if (key === "tear") {
     showMessage("Scarabs + Bend the knee shortly");
   } else if (key === "bend") {
@@ -266,7 +359,7 @@ function onAmascutLine(full, lineId) {
   } else if (key === "soloRange") {
     showMessage("Range");
   } else {
-    // weak / grovel / pathetic — keep the same behavior
+    // weak / grovel / pathetic — same behavior
     updateUI(key);
   }
 }
@@ -290,7 +383,7 @@ function readChatbox() {
 
     for (let j = i + 1; j < segs.length; j++) {
       const s2 = segs[j];
-      if (!s2.fragments || s2.fragments.length === 0) break;
+      if (!s2.fragments || !s2.fragments.length) break;
       const col = firstNonWhiteColor(s2);
       if (col && isColorNear(col, TEXT_RGB)) {
         full += " " + s2.text.trim();
@@ -307,7 +400,7 @@ function readChatbox() {
   }
 }
 
-/* --- Init --- */
+/* ========= Init ========= */
 resetUI();
 
 setTimeout(() => {
