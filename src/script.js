@@ -222,7 +222,6 @@ function startSnuffedTimers() {
   clearActiveTimers();              // cancel any previous special timers
   if (resetTimerId) { clearTimeout(resetTimerId); resetTimerId = null; }
 
-  // Ensure the first two rows are visible for the timers
   setRow(0, "Swap side: 14.4s");
   setRow(1, "Click in: 9.0s");
 
@@ -242,7 +241,7 @@ function startSnuffedTimers() {
   }, 600);
   activeIntervals.push(swapIv);
 
-  // --- Click in: loop 9.0s → 0.0s → restart, ticks 0.6s until new dawn ---
+  // Tumeken Click Timer
   let clickRemaining = 9.0;
   const clickIv = setInterval(() => {
     clickRemaining -= 0.6;
@@ -394,7 +393,6 @@ function readChatbox() {
   }
 }
 
-/* ========= Init ========= */
 resetUI();
 
 setTimeout(() => {
