@@ -1,6 +1,6 @@
 {
   "appName": "Amascut Helper",
-  "description": "Helps with mechanics of Amascut.",
+  "description": "Helps with mechanics of Amascut. Plugin by Saltea, credit to Duk for help.",
   "appUrl": "./index.html",
   "version": "1.0.9",
   "configUrl": "./appconfig.json",
