@@ -56,6 +56,40 @@ let activeTimeouts = [];  // holds timeouts for special timers so we can cancel 
   });
 })();
 
+/* ==== Added: tick configuration & toggle ==== */
+let tickMs = 600; // default 0.6s display tick
+
+(function injectTickToggle(){
+  const style = document.createElement("style");
+  style.textContent = `
+    .ah-tick-toggle{position:fixed;top:6px;left:8px;z-index:11000;font-size:12px;opacity:.85;background:#222;
+      border:1px solid #444;border-radius:4px;cursor:pointer;padding:4px 8px;line-height:1;margin-right:6px;}
+    .ah-tick-toggle:hover{opacity:1}
+  `;
+  document.head.appendChild(style);
+
+  const btn = document.createElement("button");
+  btn.className = "ah-tick-toggle";
+  btn.id = "ah-tick-toggle";
+  const saved = Number(localStorage.getItem("amascut.tickMs"));
+  tickMs = (saved === 100 || saved === 600) ? saved : 600;
+  btn.textContent = `Tick/ms: ${tickMs}`;
+  document.body.appendChild(btn);
+
+  btn.addEventListener("click", () => {
+    tickMs = (tickMs === 600) ? 100 : 600;
+    btn.textContent = `Tick/ms: ${tickMs}`;
+    try { localStorage.setItem("amascut.tickMs", String(tickMs)); } catch {}
+
+    // rebuild running interval with new tick without resetting anchors
+    if (startSnuffedTimers._iv) {
+      try { clearInterval(startSnuffedTimers._iv); } catch {}
+      startSnuffedTimers._iv = makeSnuffedInterval();
+    }
+  });
+})();
+/* ============================================ */
+
 function clearActiveTimers() {
   activeIntervals.forEach(clearInterval);
   activeTimeouts.forEach(clearTimeout);
@@ -219,6 +253,36 @@ function fmt(x) { return Math.max(0, x).toFixed(1); }
 
 let snuffStartAt = 0;
 
+/* ==== Added: shared interval builder for snuffed timers ==== */
+function makeSnuffedInterval() {
+  const iv = setInterval(() => {
+    const elapsed = (Date.now() - snuffStartAt) / 1000;
+
+    // --- Swap (14.4s one-shot) ---
+    const swapRemaining = 14.4 - elapsed;
+    if (swapRemaining <= 0) {
+      if (!startSnuffedTimers._swapFrozen) {
+        setRow(0, "Swap side: 0.0s");
+        startSnuffedTimers._swapFrozen = true; // no further updates
+        const t = setTimeout(() => { clearRow(0); }, 5000); // stay visible 5s, then remove
+        activeTimeouts.push(t);
+      }
+    } else if (!startSnuffedTimers._swapFrozen) {
+      setRow(0, `Swap side: ${fmt(swapRemaining)}s`);
+    }
+
+    // --- Click-in (9.0s repeating) ---
+    const period = 9.0;
+    let clickRemaining = period - (elapsed % period);
+    if (clickRemaining >= period - 1e-6) clickRemaining = 0;
+    setRow(1, `Click in: ${fmt(clickRemaining)}s`);
+  }, tickMs);
+
+  activeIntervals.push(iv);
+  return iv;
+}
+/* ========================================================== */
+
 function startSnuffedTimers() {
   clearActiveTimers();
   if (resetTimerId) { clearTimeout(resetTimerId); resetTimerId = null; }
@@ -231,40 +295,8 @@ function startSnuffedTimers() {
   setRow(0, "Swap side: 14.4s");
   setRow(1, "Click in: 9.0s");
 
-  const iv = setInterval(() => {
-    const elapsed = (Date.now() - snuffStartAt) / 1000;
-
-    // Swap 14.4s
-    const swapRemaining = 14.4 - elapsed;
-    if (swapRemaining <= 0) {
-      if (!startSnuffedTimers._swapFrozen) {
-        setRow(0, "Swap side: 0.0s");
-        startSnuffedTimers._swapFrozen = true; // stop updating row 0 after this
-
-        if (!startSnuffedTimers._swapHideScheduled) {
-          startSnuffedTimers._swapHideScheduled = true;
-          const t = setTimeout(() => {
-            clearRow(0);
-            startSnuffedTimers._swapHideScheduled = false;
-          }, 10000);
-          activeTimeouts.push(t);
-        }
-      }
-    } else {
-
-      if (!startSnuffedTimers._swapFrozen) {
-        setRow(0, `Swap side: ${fmt(swapRemaining)}s`);
-      }
-    }
-
-    // Click in
-    const period = 9.0;
-    let clickRemaining = period - (elapsed % period);
-    if (clickRemaining >= period - 1e-6) clickRemaining = 0;
-    setRow(1, `Click in: ${fmt(clickRemaining)}s`);
-  }, 100);
-
-  activeIntervals.push(iv);
+  if (startSnuffedTimers._iv) { try { clearInterval(startSnuffedTimers._iv); } catch {} }
+  startSnuffedTimers._iv = makeSnuffedInterval();
 }
 
 function stopSnuffedTimersAndReset() {
@@ -277,17 +309,53 @@ function stopSnuffedTimersAndReset() {
   startSnuffedTimers._swapHideScheduled = false;
   startSnuffedTimers._swapFrozen = false;
 
+  snuffStartAt = 0;
+
   lastDisplayAt = 0;
   [0, 1, 2].forEach(clearRow);
   resetUI();
 }
 
-
 let lastSig = "";
 let lastAt = 0;
 
+/* ==== Added: colored, auto-clearing solo messages ==== */
+function showSolo(role, cls) {
+  const rows = document.querySelectorAll("#spec tr");
+  if (!rows.length) return;
+
+  // clear all rows
+  for (let i = 0; i < rows.length; i++) {
+    rows[i].classList.remove("role-range","role-magic","role-melee","callout","flash","selected");
+    const c = rows[i].querySelector("td");
+    if (c) c.textContent = "";
+    rows[i].style.display = "none";
+  }
+
+  // show on row 0 with color
+  const row = rows[0];
+  if (row) {
+    const cell = row.querySelector("td");
+    if (cell) cell.textContent = role;
+    row.style.display = "table-row";
+    row.classList.add("selected","callout","flash",cls);
+  }
+
+  // remove after 4 seconds
+  const t = setTimeout(() => { clearRow(0); }, 4000);
+  activeTimeouts.push(t);
+}
+/* ======================================================= */
+
 function onAmascutLine(full, lineId) {
   // (remove the early seenLineIds block here)
+
+  // Hard reset on session message
+  if (/welcome to your session/i.test(full)) {
+    log("🔄 Session welcome detected — full reset");
+    stopSnuffedTimersAndReset();
+    return;
+  }
 
   const raw = full;
   const low = full.toLowerCase();
@@ -306,7 +374,7 @@ function onAmascutLine(full, lineId) {
   else if (raw.includes("Crondis... It should have never come to this")) key = "crondis";
   else if (raw.includes("I'm sorry, Apmeken")) key = "apmeken";
   else if (raw.includes("Forgive me, Het")) key = "het";
-  else if (raw.includes("Scabaras...")) key = "scabaras";
+  else if (/Scabaras\.\.\.(?!\s*Het\.\.\.\s*Bear witness!?)/i.test(raw)) key = "scabaras";
   if (!key) return;
 
   // Only dedupe with seenLineIds for NON-snuffed lines
@@ -330,10 +398,15 @@ function onAmascutLine(full, lineId) {
 
 
   if (key === "snuffed") {
-    log("⚡ Snuffed out detected — resetting timers");
-    startSnuffedTimers();
+  if (snuffStartAt) {
+    log("⚡ Snuffed out already active — ignoring duplicate");
     return;
   }
+  log("⚡ Snuffed out detected — starting timers");
+  startSnuffedTimers();
+  return;
+}
+
   if (key === "newdawn") {
     log("🌅 A new dawn — resetting timers");
     stopSnuffedTimersAndReset();
@@ -355,11 +428,11 @@ function onAmascutLine(full, lineId) {
   } else if (key === "scabaras") {
     showMessage("Scabaras (NE)");
   } else if (key === "soloWeakMagic") {
-    showMessage("Magic");
+    showSolo("Magic", "role-magic");   // blue
   } else if (key === "soloMelee") {
-    showMessage("Melee");
+    showSolo("Melee", "role-melee");   // red
   } else if (key === "soloRange") {
-    showMessage("Range");
+    showSolo("Range", "role-range");   // green
   } else {
     // weak / grovel / pathetic — same behavior
     updateUI(key);
