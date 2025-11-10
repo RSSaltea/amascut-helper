@@ -37,8 +37,8 @@ In addition to standard mechanics, this app also handles Hardmode deity location
 
 ## Installation
 
-1. **Copy paste into browser install in Alt1:**  
-   - `alt1://addapp/https://rssaltea.github.io/amascut-helper/appconfig.json`
+1. **Click to install in Alt1:**  
+   - [alt1://addapp/https://rssaltea.github.io/amascut-helper/appconfig.json](alt1://addapp/https://rssaltea.github.io/amascut-helper/appconfig.json)
 
 2. **Manual install:**
    - Download this repo or the app folder.
@@ -50,11 +50,6 @@ In addition to standard mechanics, this app also handles Hardmode deity location
 
 - Launch the app in Alt1.
 - Make sure your chatbox is visible and in a standard Alt1-readable format.
-- Configure your settings via the ⚙️ **Settings Cog**:
-  - Role
-  - Bend the Knee strategy
-  - Scarabs strategy
-  - Logs toggle
 - The UI will update automatically during the fight.
 
 ---
