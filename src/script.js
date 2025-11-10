@@ -27,7 +27,7 @@ let lastDisplayAt = 0; // for 10s window used by generic showMessage/updateUI
 let activeIntervals = []; // holds intervals for special timers so we can cancel them
 let activeTimeouts = [];  // holds timeouts for special timers so we can cancel them
 let snuffSeenForKill = false; // only first "snuffed out" per kill
-/* ========= Logs visibility toggle ========= */
+
 (function injectLogsToggle(){
   const style = document.createElement("style");
   style.textContent = `
@@ -57,7 +57,6 @@ let snuffSeenForKill = false; // only first "snuffed out" per kill
   });
 })();
 
-/* ========= UI helpers ========= */
 function clearActiveTimers() {
   activeIntervals.forEach(clearInterval);
   activeTimeouts.forEach(clearTimeout);
@@ -96,7 +95,6 @@ function resetUI() {
   }
 }
 
-/* Single/dual-line display for normal messages (unchanged behavior) */
 function showMessage(text) {
   const rows = document.querySelectorAll("#spec tr");
   if (!rows.length) return;
@@ -137,7 +135,6 @@ function showMessage(text) {
   autoResetIn10s();
 }
 
-/* Weak/Pathetic/Grovel (unchanged) */
 const RESPONSES = {
   weak:     "Range > Magic > Melee",
   grovel:   "Magic > Melee > Range",
@@ -170,7 +167,6 @@ function updateUI(key) {
   autoResetIn10s();
 }
 
-/* ========= Chat reading (unchanged) ========= */
 const reader = new Chatbox.default();
 const NAME_RGB = [69, 131, 145];
 const TEXT_RGB = [153, 255, 153];
@@ -201,7 +197,6 @@ function firstNonWhiteColor(seg) {
   return null;
 }
 
-/* ========= Special: Snuffed Out Timers ========= */
 /* Helpers to ensure rows are visible and to print on fixed rows */
 function setRow(i, text) {
   const rows = document.querySelectorAll("#spec tr");
@@ -219,26 +214,26 @@ function clearRow(i) {
   rows[i].style.display = "none";
   rows[i].classList.remove("selected", "callout", "flash", "role-range", "role-magic", "role-melee");
 }
+
 /* format with one decimal (e.g., 14.4 → 14.4, 0.05 → 0.0) */
 function fmt(x) { return Math.max(0, x).toFixed(1); }
 
-/* Start both timers after first "snuffed out" of a kill */
 function startSnuffedTimers() {
   clearActiveTimers();              // cancel any previous special timers
-  if (resetTimerId) { clearTimeout(resetTimerId); resetTimerId = null; } // don't auto-clear globally
+  if (resetTimerId) { clearTimeout(resetTimerId); resetTimerId = null; }
 
   // Ensure the first two rows are visible for the timers
   setRow(0, "Swap side: 14.4s");
   setRow(1, "Click in: 9.0s");
 
-  // --- Swap side: 14.4s, ticks 0.6s, then hide 10s AFTER reaching 0.0 ---
+
   let swapRemaining = 14.4;
   const swapIv = setInterval(() => {
     swapRemaining -= 0.6;
     if (swapRemaining <= 0) {
       setRow(0, `Swap side: 0.0s`);
       clearInterval(swapIv);
-      // after 10s, hide row 0 (do NOT reset entire UI; click-in may still be running)
+
       const t = setTimeout(() => { clearRow(0); }, 10000);
       activeTimeouts.push(t);
     } else {
@@ -261,15 +256,14 @@ function startSnuffedTimers() {
   activeIntervals.push(clickIv);
 }
 
-/* Stop snuffed timers and clear both timer rows */
 function stopSnuffedTimersAndReset() {
   clearActiveTimers();
-  clearRow(0);
-  clearRow(1);
-  resetUI(); // show "Waiting..." again
+  if (resetTimerId) { clearTimeout(resetTimerId); resetTimerId = null; }
+  lastDisplayAt = 0;
+  [0, 1, 2].forEach(clearRow);
+  resetUI();
 }
 
-/* ========= Line handling ========= */
 let lastSig = "";
 let lastAt = 0;
 
@@ -284,8 +278,8 @@ function onAmascutLine(full, lineId) {
     }
   }
 
-  const raw = full;                // original case
-  const low = full.toLowerCase();  // ci matching
+  const raw = full;                
+  const low = full.toLowerCase();  
 
   let key = null;
 
@@ -335,10 +329,10 @@ function onAmascutLine(full, lineId) {
 
   if (key === "newdawn") {
     log("🌅 A new dawn — resetting timers");
-    snuffSeenForKill = false;
-    stopSnuffedTimersAndReset();
-    return;
-  }
+    snuffSeenForKill = false;          // mark new kill first
+    stopSnuffedTimersAndReset();       // then hard reset UI/timers
+  return;
+}
 
   if (key === "tear") {
     showMessage("Scarabs + Bend the knee shortly");
