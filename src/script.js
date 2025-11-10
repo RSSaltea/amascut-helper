@@ -26,7 +26,6 @@ let resetTimerId = null;
 let lastDisplayAt = 0; // for 10s window used by generic showMessage/updateUI
 let activeIntervals = []; // holds intervals for special timers so we can cancel them
 let activeTimeouts = [];  // holds timeouts for special timers so we can cancel them
-let snuffSeenForKill = false; // only first "snuffed out" per kill
 
 (function injectLogsToggle(){
   const style = document.createElement("style");
@@ -218,57 +217,101 @@ function clearRow(i) {
 /* format with one decimal (e.g., 14.4 → 14.4, 0.05 → 0.0) */
 function fmt(x) { return Math.max(0, x).toFixed(1); }
 
+let snuffStartAt = 0;
+
 function startSnuffedTimers() {
-  clearActiveTimers();              // cancel any previous special timers
+  clearActiveTimers();
   if (resetTimerId) { clearTimeout(resetTimerId); resetTimerId = null; }
+
+  startSnuffedTimers._swapHideScheduled = false;
+  startSnuffedTimers._swapFrozen = false;
+
+  snuffStartAt = Date.now();
 
   setRow(0, "Swap side: 14.4s");
   setRow(1, "Click in: 9.0s");
 
+  const iv = setInterval(() => {
+    const elapsed = (Date.now() - snuffStartAt) / 1000;
 
-  let swapRemaining = 14.4;
-  const swapIv = setInterval(() => {
-    swapRemaining -= 0.6;
+    // Swap 14.4s
+    const swapRemaining = 14.4 - elapsed;
     if (swapRemaining <= 0) {
-      setRow(0, `Swap side: 0.0s`);
-      clearInterval(swapIv);
+      if (!startSnuffedTimers._swapFrozen) {
+        setRow(0, "Swap side: 0.0s");
+        startSnuffedTimers._swapFrozen = true; // stop updating row 0 after this
 
-      const t = setTimeout(() => { clearRow(0); }, 10000);
-      activeTimeouts.push(t);
+        if (!startSnuffedTimers._swapHideScheduled) {
+          startSnuffedTimers._swapHideScheduled = true;
+          const t = setTimeout(() => {
+            clearRow(0);
+            startSnuffedTimers._swapHideScheduled = false;
+          }, 10000);
+          activeTimeouts.push(t);
+        }
+      }
     } else {
-      setRow(0, `Swap side: ${fmt(swapRemaining)}s`);
-    }
-  }, 600);
-  activeIntervals.push(swapIv);
 
-  // Tumeken Click Timer
-  let clickRemaining = 9.0;
-  const clickIv = setInterval(() => {
-    clickRemaining -= 0.6;
-    if (clickRemaining <= 0) {
-      setRow(1, `Click in: 0.0s`);
-      clickRemaining = 9.0; // restart immediately
-    } else {
-      setRow(1, `Click in: ${fmt(clickRemaining)}s`);
+      if (!startSnuffedTimers._swapFrozen) {
+        setRow(0, `Swap side: ${fmt(swapRemaining)}s`);
+      }
     }
-  }, 600);
-  activeIntervals.push(clickIv);
+
+    // Click in
+    const period = 9.0;
+    let clickRemaining = period - (elapsed % period);
+    if (clickRemaining >= period - 1e-6) clickRemaining = 0;
+    setRow(1, `Click in: ${fmt(clickRemaining)}s`);
+  }, 100);
+
+  activeIntervals.push(iv);
 }
 
 function stopSnuffedTimersAndReset() {
   clearActiveTimers();
-  if (resetTimerId) { clearTimeout(resetTimerId); resetTimerId = null; }
+  if (resetTimerId) {
+    clearTimeout(resetTimerId);
+    resetTimerId = null;
+  }
+
+  startSnuffedTimers._swapHideScheduled = false;
+  startSnuffedTimers._swapFrozen = false;
+
   lastDisplayAt = 0;
   [0, 1, 2].forEach(clearRow);
   resetUI();
 }
 
+
 let lastSig = "";
 let lastAt = 0;
 
 function onAmascutLine(full, lineId) {
-  if (lineId && seenLineIds.has(lineId)) return;
-  if (lineId) {
+  // (remove the early seenLineIds block here)
+
+  const raw = full;
+  const low = full.toLowerCase();
+
+  let key = null;
+  if (low.includes("your soul is weak")) key = "soloWeakMagic";
+  else if (low.includes("all strength withers")) key = "soloMelee";
+  else if (low.includes("i will not suffer this")) key = "soloRange";
+  else if (low.includes("your light will be snuffed out")) key = "snuffed";
+  else if (low.includes("a new dawn")) key = "newdawn";
+  else if (raw.includes("Grovel")) key = "grovel";
+  else if (/\bWeak\b/.test(raw)) key = "weak";
+  else if (raw.includes("Pathetic")) key = "pathetic";
+  else if (low.includes("tear them apart")) key = "tear";
+  else if (low.includes("bend the knee")) key = "bend";
+  else if (raw.includes("Crondis... It should have never come to this")) key = "crondis";
+  else if (raw.includes("I'm sorry, Apmeken")) key = "apmeken";
+  else if (raw.includes("Forgive me, Het")) key = "het";
+  else if (raw.includes("Scabaras...")) key = "scabaras";
+  if (!key) return;
+
+  // Only dedupe with seenLineIds for NON-snuffed lines
+  if (key !== "snuffed" && lineId) {
+    if (seenLineIds.has(lineId)) return;
     seenLineIds.add(lineId);
     seenLineQueue.push(lineId);
     if (seenLineQueue.length > 120) {
@@ -277,61 +320,27 @@ function onAmascutLine(full, lineId) {
     }
   }
 
-  const raw = full;                
-  const low = full.toLowerCase();  
-
-  let key = null;
-
-  // Phrase-specific checks (keep ahead of generic Weak)
-  if (low.includes("your soul is weak")) key = "soloWeakMagic";     // → Magic
-  else if (low.includes("all strength withers")) key = "soloMelee";  // → Melee
-  else if (low.includes("i will not suffer this")) key = "soloRange";// → Range
-
-  // Snuffed / New dawn (Amascut)
-  else if (low.includes("your light will be snuffed out")) key = "snuffed";
-  else if (low.includes("a new dawn")) key = "newdawn";
-
-  // Existing order lines
-  else if (raw.includes("Grovel")) key = "grovel";
-  else if (/\bWeak\b/.test(raw)) key = "weak";
-  else if (raw.includes("Pathetic")) key = "pathetic";
-
-  // Event calls
-  else if (low.includes("tear them apart")) key = "tear";    // → Scarabs + Bend...
-  else if (low.includes("bend the knee")) key = "bend";      // → Bend the Knee
-
-  // Gods
-  else if (raw.includes("Crondis... It should have never come to this")) key = "crondis";
-  else if (raw.includes("I'm sorry, Apmeken")) key = "apmeken";
-  else if (raw.includes("Forgive me, Het")) key = "het";
-  else if (raw.includes("Scabaras...")) key = "scabaras";
-
-  if (!key) return;
-
   const now = Date.now();
+    if (key !== "snuffed") {
   const sig = key + "|" + raw.slice(-80);
-  if (sig === lastSig && now - lastAt < 1200) return;
+    if (sig === lastSig && now - lastAt < 1200) return;
   lastSig = sig;
   lastAt = now;
+}
 
-  // Display logic
+
   if (key === "snuffed") {
-    if (!snuffSeenForKill) {
-      snuffSeenForKill = true;
-      log("⚡ Snuffed out detected — starting timers");
-      startSnuffedTimers();
-    } else {
-      log("(snuffed) already running this kill; ignored");
-    }
+    log("⚡ Snuffed out detected — resetting timers");
+    startSnuffedTimers();
+    return;
+  }
+  if (key === "newdawn") {
+    log("🌅 A new dawn — resetting timers");
+    stopSnuffedTimersAndReset();
+    snuffStartAt = 0;
     return;
   }
 
-  if (key === "newdawn") {
-    log("🌅 A new dawn — resetting timers");
-    snuffSeenForKill = false;          // mark new kill first
-    stopSnuffedTimersAndReset();       // then hard reset UI/timers
-  return;
-}
 
   if (key === "tear") {
     showMessage("Scarabs + Bend the knee shortly");
