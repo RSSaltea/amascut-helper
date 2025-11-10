@@ -295,8 +295,8 @@ function onAmascutLine(full, lineId) {
   else if (low.includes("i will not suffer this")) key = "soloRange";// → Range
 
   // Snuffed / New dawn (Amascut)
-  else if (low.includes("Your light will be snuffed out")) key = "snuffed";
-  else if (low.includes("A new dawn")) key = "newdawn";
+  else if (low.includes("your light will be snuffed out")) key = "snuffed";
+  else if (low.includes("a new dawn")) key = "newdawn";
 
   // Existing order lines
   else if (raw.includes("Grovel")) key = "grovel";
