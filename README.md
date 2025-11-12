@@ -56,7 +56,7 @@ In addition to standard mechanics, this app also handles Hardmode deity location
 
 ## Notes
 
-- This is **Hardmode only** – some mechanics differ from Normal Mode.
+- This is developed for **Hardmode only**, feel free to use in **Normal mode** but it may not work as intended.
 - For **any issues, questions, or suggestions**, please DM **`.saltea`** on Discord.
 
 ---
