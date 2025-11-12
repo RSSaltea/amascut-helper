@@ -27,11 +27,28 @@ let lastDisplayAt = 0; // for 10s window used by generic showMessage/updateUI
 let activeIntervals = []; // holds intervals for special timers so we can cancel them
 let activeTimeouts = [];  // holds timeouts for special timers so we can cancel them
 
+/* =========================
+   Global overlay preferences
+   ========================= */
+let overlayScale = Number(localStorage.getItem("amascut.overlayScale") || "1");
+if (!(overlayScale >= 0.25 && overlayScale <= 2.0)) overlayScale = 1;
+let overlayEnabled = (localStorage.getItem("amascut.overlayEnabled") ?? "true") === "true";
+
+/* NEW: persistent overlay position (top-left) */
+let overlayPos = null;
+try {
+  const stored = JSON.parse(localStorage.getItem("amascut.overlayPos") || "null");
+  if (stored && Number.isFinite(stored.x) && Number.isFinite(stored.y)) {
+    overlayPos = { x: stored.x, y: stored.y };
+  }
+} catch {}
+
+/* ---------- Logs toggle ---------- */
 (function injectLogsToggle(){
   const style = document.createElement("style");
   style.textContent = `
     .ah-logs-toggle{position:fixed;top:6px;right:8px;z-index:11000;font-size:12px;opacity:.85;background:#222;
-      border:1px solid #444;border-radius:4px;cursor:pointer;padding:4px 8px;line-height:1;}
+      border:1px solid #444;border-radius:4px;cursor:pointer;padding:4px 8px;line-height:1;color:#fff}
     .ah-logs-toggle:hover{opacity:1}
     .logs-hidden #output{display:none !important}
   `;
@@ -56,14 +73,14 @@ let activeTimeouts = [];  // holds timeouts for special timers so we can cancel 
   });
 })();
 
-/* ==== Added: tick configuration & toggle ==== */
+/* ==== Tick configuration & toggle ==== */
 let tickMs = 600; // default 0.6s display tick
 
 (function injectTickToggle(){
   const style = document.createElement("style");
   style.textContent = `
     .ah-tick-toggle{position:fixed;top:6px;left:8px;z-index:11000;font-size:12px;opacity:.85;background:#222;
-      border:1px solid #444;border-radius:4px;cursor:pointer;padding:4px 8px;line-height:1;margin-right:6px;}
+      border:1px solid #444;border-radius:4px;cursor:pointer;padding:4px 8px;line-height:1;margin-right:6px;color:#fff}
     .ah-tick-toggle:hover{opacity:1}
   `;
   document.head.appendChild(style);
@@ -80,8 +97,6 @@ let tickMs = 600; // default 0.6s display tick
     tickMs = (tickMs === 600) ? 100 : 600;
     btn.textContent = `Tick/ms: ${tickMs}`;
     try { localStorage.setItem("amascut.tickMs", String(tickMs)); } catch {}
-
-    // rebuild running interval with new tick without resetting anchors
     if (startSnuffedTimers._iv) {
       try { clearInterval(startSnuffedTimers._iv); } catch {}
       startSnuffedTimers._iv = makeSnuffedInterval();
@@ -89,6 +104,189 @@ let tickMs = 600; // default 0.6s display tick
   });
 })();
 /* ============================================ */
+
+/* ===== Options panel (bottom-right) + minimise button + Set pos ===== */
+let posMode = false;           // NEW: positioning mode flag
+let posRaf = 0;                // NEW: RAF handle for mouse-follow
+(function injectOptionsPanel(){
+  const style = document.createElement("style");
+  style.textContent = `
+    .ah-panel{position:fixed;right:12px;bottom:12px;z-index:11050;min-width:260px;
+      background:#1b1f24cc;border:1px solid #444;border-radius:8px;padding:10px 10px 8px 10px;
+      box-shadow:0 6px 16px #000a;font-family:rs-pro-3;color:#ddd}
+    .ah-panel h4{margin:0 0 8px 0;font-size:14px;color:#fff;position:relative;padding-right:60px}
+    .ah-min-btn{position:absolute;right:0;top:-2px;font-size:12px;padding:4px 8px;border:1px solid #555;
+      background:#222;color:#ddd;border-radius:4px;cursor:pointer}
+    .ah-row{display:flex;align-items:center;gap:8px;margin:6px 0}
+    .ah-row label{font-size:12px;min-width:110px}
+    .ah-row input[type="range"]{flex:1}
+    .ah-buttons{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+    .ah-buttons > *{position:static !important; font-size:12px; line-height:1; padding:4px 8px; margin:0; color:#fff}
+    .ah-mini{position:fixed;right:12px;bottom:12px;z-index:11051;background:#1b1f24;
+      border:1px solid #444;border-radius:999px;padding:8px 12px;box-shadow:0 6px 16px #000a;
+      color:#ddd;font-family:rs-pro-3;cursor:pointer;display:none;user-select:none}
+    .ah-small{font-size:11px; opacity:.8}
+    .ah-simple-btn{border:1px solid #444;background:#222;border-radius:4px;cursor:pointer}
+  `;
+  document.head.appendChild(style);
+
+  const panel = document.createElement("div");
+  panel.className = "ah-panel";
+  panel.innerHTML = `
+    <h4>
+      Amascut Helper – Options
+      <button id="ah-panel-min" class="ah-min-btn" title="Minimise">Minimise</button>
+    </h4>
+    <div class="ah-row">
+      <label for="ah-size">Overlay size</label>
+      <input id="ah-size" type="range" min="0.25" max="2" step="0.05">
+      <span id="ah-size-val" style="width:48px;text-align:right;">1.00×</span>
+    </div>
+    <div class="ah-row">
+      <label for="ah-enable">Overlay</label>
+      <input id="ah-enable" type="checkbox">
+      <span id="ah-enable-state"></span>
+    </div>
+    <div class="ah-buttons" id="ah-extra-btns"></div>
+    <div class="ah-row"><span id="ah-pos-val" class="ah-small"></span></div>
+  `;
+  document.body.appendChild(panel);
+
+  const mini = document.createElement("div");
+  mini.className = "ah-mini";
+  mini.id = "ah-panel-mini";
+  mini.textContent = "⚙";
+  document.body.appendChild(mini);
+
+  let panelMin = (localStorage.getItem("amascut.panelMin") ?? "false") === "true";
+  function setPanelMin(min){
+    panelMin = !!min;
+    panel.style.display = panelMin ? "none" : "block";
+    mini.style.display = panelMin ? "block" : "none";
+    try { localStorage.setItem("amascut.panelMin", String(panelMin)); } catch {}
+  }
+  panel.querySelector("#ah-panel-min").addEventListener("click", () => setPanelMin(true));
+  mini.addEventListener("click", () => setPanelMin(false));
+  setPanelMin(panelMin);
+
+  const size = panel.querySelector("#ah-size");
+  const sizeVal = panel.querySelector("#ah-size-val");
+  size.value = String(overlayScale);
+  sizeVal.textContent = `${Number(overlayScale).toFixed(2)}×`;
+  size.addEventListener("input", () => {
+    overlayScale = Number(size.value);
+    sizeVal.textContent = `${overlayScale.toFixed(2)}×`;
+    try { localStorage.setItem("amascut.overlayScale", String(overlayScale)); } catch {}
+  });
+
+  const cb = panel.querySelector("#ah-enable");
+  const state = panel.querySelector("#ah-enable-state");
+  const refreshEnableText = () => state.textContent = overlayEnabled ? "On" : "Off";
+  cb.checked = overlayEnabled;
+  refreshEnableText();
+  cb.addEventListener("change", () => {
+    overlayEnabled = cb.checked;
+    try { localStorage.setItem("amascut.overlayEnabled", String(overlayEnabled)); } catch {}
+    refreshEnableText();
+    if (!overlayEnabled) clearOverlayGroup();
+  });
+
+  const posVal = panel.querySelector("#ah-pos-val");
+  const updatePosLabel = () => {
+    if (overlayPos) posVal.textContent = `Position: (${overlayPos.x}, ${overlayPos.y})`;
+    else posVal.textContent = `Position: centered`;
+  };
+  updatePosLabel();
+
+  const extra = panel.querySelector("#ah-extra-btns");
+  const tickBtn = document.getElementById("ah-tick-toggle");
+  const logsBtn = document.getElementById("ah-logs-toggle");
+  [tickBtn, logsBtn].forEach(btn => {
+    if (!btn) return;
+    btn.style.position = "static";
+    btn.style.margin = "0";
+    extra.appendChild(btn);
+  });
+
+  /* NEW: “Set pos” mini button (starts pos mode; save with Alt+1 or click again) */
+  const setPos = document.createElement("button");
+  setPos.textContent = "Setting… (Alt+1)"; // initial text toggled below
+  setPos.className = "ah-simple-btn";
+  setPos.style.color = "#fff";
+  extra.appendChild(setPos);
+  setPos.textContent = "Set pos"; // finalize default
+
+  function stopPosMode(saveNow = false){
+    posMode = false;
+    setPos.textContent = "Set pos";
+    try { alt1 && alt1.clearTooltip && alt1.clearTooltip(); } catch {}
+    if (posRaf) cancelAnimationFrame(posRaf), posRaf = 0;
+    if (saveNow && overlayPos) {
+      localStorage.setItem("amascut.overlayPos", JSON.stringify(overlayPos));
+      updatePosLabel();
+      log(`📍 Overlay position set to ${overlayPos.x}, ${overlayPos.y}`);
+    }
+  }
+
+  function startPosMode(){
+    if (posMode) return;
+    posMode = true;
+    setPos.textContent = "Setting… (Alt+1)";
+    try { alt1 && alt1.setTooltip && alt1.setTooltip("Press Alt+1 to save overlay position!"); } catch {}
+
+    const step = () => {
+      if (!posMode) return;
+      // NEW: robust mouse position fallback chain
+      const mp =
+        (window.a1lib && typeof a1lib.getMousePosition === "function" && a1lib.getMousePosition()) ||
+        (window.A1lib && typeof A1lib.getMousePosition === "function" && A1lib.getMousePosition()) ||
+        null;
+
+      if (mp && Number.isFinite(mp.x) && Number.isFinite(mp.y)) {
+        // Top-left of overlay at mouse pos; simple & predictable
+        overlayPos = { x: Math.max(0, Math.floor(mp.x)), y: Math.max(0, Math.floor(mp.y)) };
+      }
+      posRaf = requestAnimationFrame(step);
+    };
+    posRaf = requestAnimationFrame(step);
+  }
+
+  setPos.addEventListener("click", () => {
+    // CHANGED: clicking again while positioning now SAVES
+    if (posMode) { stopPosMode(true); } else { startPosMode(); }
+  });
+
+  /* NEW: Alt1 global hotkey — try multiple bind styles */
+  const bindAlt1 = (handler) => {
+    try {
+      if (window.a1lib && typeof a1lib.on === "function") {
+        a1lib.on("alt1pressed", handler);
+        return true;
+      }
+    } catch {}
+    try {
+      if (window.A1lib && typeof A1lib.on === "function") {
+        A1lib.on("alt1pressed", handler);
+        return true;
+      }
+    } catch {}
+    return false;
+  };
+  const bound = bindAlt1(() => { if (posMode) stopPosMode(true); });
+
+  /* Fallback (for debugging outside RS focus) */
+  window.addEventListener("keydown", (e) => {
+    if (posMode && e.altKey && (e.code === "Digit1" || e.key === "1")) {
+      e.preventDefault();
+      stopPosMode(true);
+    }
+  });
+
+  if (!bound) {
+    log("ℹ️ Alt+1 binding via a1lib.on not available; click Set pos again to save.");
+  }
+})();
+/* ======================================== */
 
 function clearActiveTimers() {
   activeIntervals.forEach(clearInterval);
@@ -389,23 +587,22 @@ function onAmascutLine(full, lineId) {
   }
 
   const now = Date.now();
-    if (key !== "snuffed") {
-  const sig = key + "|" + raw.slice(-80);
+  if (key !== "snuffed") {
+    const sig = key + "|" + raw.slice(-80);
     if (sig === lastSig && now - lastAt < 1200) return;
-  lastSig = sig;
-  lastAt = now;
-}
-
+    lastSig = sig;
+    lastAt = now;
+  }
 
   if (key === "snuffed") {
-  if (snuffStartAt) {
-    log("⚡ Snuffed out already active — ignoring duplicate");
+    if (snuffStartAt) {
+      log("⚡ Snuffed out already active — ignoring duplicate");
+      return;
+    }
+    log("⚡ Snuffed out detected — starting timers");
+    startSnuffedTimers();
     return;
   }
-  log("⚡ Snuffed out detected — starting timers");
-  startSnuffedTimers();
-  return;
-}
 
   if (key === "newdawn") {
     log("🌅 A new dawn — resetting timers");
@@ -413,7 +610,6 @@ function onAmascutLine(full, lineId) {
     snuffStartAt = 0;
     return;
   }
-
 
   if (key === "tear") {
     showMessage("Scarabs + Bend the knee shortly");
@@ -488,6 +684,9 @@ setTimeout(() => {
         log("✅ chatbox found");
         showSelected(reader.pos);
         setInterval(readChatbox, 250);
+
+        // start overlay when ready
+        try { startOverlay(); } catch (e) { console.error(e); }
       }
     } catch (e) {
       log("⚠️ " + (e?.message || e));
@@ -500,4 +699,196 @@ function showSelected(pos) {
     const b = pos.mainbox.rect;
     alt1.overLayRect(A1lib.mixColor(0, 255, 0), b.x, b.y, b.width, b.height, 2000, 4);
   } catch {}
+}
+
+/* ===== Alt1 overlay controller ===== */
+const overlayCtl = {
+  group: "amascOverlayRegion",
+  raf: 0,
+  timer: 0,
+  refreshRate: 50,
+  running: false,
+};
+
+function getRsClientSize() {
+  try {
+    const w = (alt1 && alt1.rsWidth) ? alt1.rsWidth : 800;
+    const h = (alt1 && alt1.rsHeight) ? alt1.rsHeight : 600;
+    return { w, h };
+  } catch { return { w: 800, h: 600 }; }
+}
+
+function centerFor(canvas) {
+  const { w: rw, h: rh } = getRsClientSize();
+  return {
+    x: Math.max(0, Math.round((rw - canvas.width) / 2)),
+    y: Math.max(0, Math.round((rh - canvas.height) / 2)),
+  };
+}
+
+/* Use saved position if available; otherwise center */
+function positionFor(canvas) {
+  if (overlayPos && Number.isFinite(overlayPos.x) && Number.isFinite(overlayPos.y)) {
+    return { x: Math.max(0, Math.floor(overlayPos.x)), y: Math.max(0, Math.floor(overlayPos.y)) };
+  }
+  return centerFor(canvas);
+}
+
+function clearOverlayGroup() {
+  try {
+    alt1.overLaySetGroup(overlayCtl.group);
+    alt1.overLayFreezeGroup(overlayCtl.group);
+    alt1.overLayClearGroup(overlayCtl.group);
+    alt1.overLayRefreshGroup(overlayCtl.group);
+  } catch {}
+}
+
+function scheduleNext(cb) {
+  overlayCtl.timer = window.setTimeout(() => {
+    overlayCtl.raf = window.requestAnimationFrame(cb);
+  }, overlayCtl.refreshRate);
+}
+
+// helper: a1lib/A1lib encoder (handles either global)
+function encodeImage(imgData) {
+  const enc = (window.a1lib && a1lib.encodeImageString) || (window.A1lib && A1lib.encodeImageString);
+  if (!enc) throw new Error("encodeImageString not found on a1lib/A1lib");
+  return enc(imgData);
+}
+
+/* ==================== Text-only overlay ==================== */
+function gatherSpecLines() {
+  const rows = document.querySelectorAll("#spec tr");
+  const lines = [];
+
+  // While positioning, force a visible label so you can see it move
+  if (posMode) {
+    lines.push({ text: "Positioning...", color: "#FFFFFF" });
+    return lines;
+  }
+
+  rows.forEach((row) => {
+    if (row.style.display === "none") return;
+    const td = row.querySelector("td");
+    const text = (td?.textContent || "").trim();
+    if (!text) return;
+
+    let color = "#FFFFFF";
+    if (row.classList.contains("role-range")) color = "#1fb34f"; // green
+    else if (row.classList.contains("role-magic")) color = "#3a67ff"; // blue
+    else if (row.classList.contains("role-melee")) color = "#e13b3b"; // red
+
+    lines.push({ text, color });
+  });
+  return lines;
+}
+
+function renderLinesToCanvas(lines) {
+  const { w: rw } = getRsClientSize();
+  // scale influenced by panel slider
+  const baseSize = Math.round(Math.min(64, Math.max(28, rw * 0.045)));
+  const fontSize = Math.max(14, Math.round(baseSize * overlayScale));
+  const pad = 12;
+  const gap = 6;
+
+  // measure
+  const m = document.createElement("canvas");
+  const mctx = m.getContext("2d");
+  mctx.font = `bold ${fontSize}px system-ui, -apple-system, Segoe UI, Arial, sans-serif`;
+
+  let maxW = 0;
+  for (const { text } of lines) {
+    const w = Math.ceil(mctx.measureText(text).width);
+    if (w > maxW) maxW = w;
+  }
+  const lineH = fontSize + gap;
+  const cw = Math.max(1, maxW + pad * 2);
+  const ch = Math.max(1, lines.length * lineH + pad * 2);
+
+  const c = document.createElement("canvas");
+  c.width = cw;
+  c.height = ch;
+
+  const ctx = c.getContext("2d");
+  ctx.font = `bold ${fontSize}px system-ui, -apple-system, Segoe UI, Arial, sans-serif`;
+  ctx.textBaseline = "top";
+
+  const outline = Math.max(2, Math.round(fontSize / 10));
+  let y = pad;
+  for (const { text, color } of lines) {
+    const x = pad;
+
+    ctx.lineWidth = outline;
+    ctx.strokeStyle = "rgba(0,0,0,0.85)";
+    ctx.strokeText(text, x, y);
+
+    ctx.fillStyle = color;
+    ctx.fillText(text, x, y);
+
+    y += lineH;
+  }
+  return c;
+}
+/* ================================================================= */
+
+async function updateOverlayOnce() {
+  try {
+    if (!window.alt1) { scheduleNext(updateOverlayOnce); return; }
+
+    if (!overlayEnabled) { // obey panel toggle
+      clearOverlayGroup();
+      scheduleNext(updateOverlayOnce);
+      return;
+    }
+
+    const lines = gatherSpecLines();
+    if (!lines.length) {
+      clearOverlayGroup();
+      scheduleNext(updateOverlayOnce);
+      return;
+    }
+
+    const canvas = renderLinesToCanvas(lines);
+    const ctx = canvas.getContext("2d");
+    const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const pos = positionFor(canvas);
+
+    if (img && img.width > 0 && img.height > 0) {
+      alt1.overLaySetGroup(overlayCtl.group);
+      alt1.overLayFreezeGroup(overlayCtl.group);
+      alt1.overLayClearGroup(overlayCtl.group);
+      alt1.overLayImage(
+        pos.x,
+        pos.y,
+        encodeImage(img),
+        img.width,
+        overlayCtl.refreshRate
+      );
+      alt1.overLayRefreshGroup(overlayCtl.group);
+    } else {
+      clearOverlayGroup();
+    }
+  } catch (e) {
+    console.error(e);
+    clearOverlayGroup();
+  } finally {
+    if (overlayCtl.running) scheduleNext(updateOverlayOnce);
+  }
+}
+
+function startOverlay(opts = {}) {
+  overlayCtl.refreshRate = Number(opts.refreshRate) || 50;
+  if (overlayCtl.running) return;
+  overlayCtl.running = true;
+  clearOverlayGroup();
+  scheduleNext(updateOverlayOnce);
+}
+
+function stopOverlay() {
+  overlayCtl.running = false;
+  try { if (overlayCtl.raf) cancelAnimationFrame(overlayCtl.raf); } catch {}
+  try { if (overlayCtl.timer) clearTimeout(overlayCtl.timer); } catch {}
+  overlayCtl.raf = 0;
+  overlayCtl.timer = 0;
+  clearOverlayGroup();
 }
