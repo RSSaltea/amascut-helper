@@ -236,14 +236,12 @@ let posRaf = 0;                // NEW: RAF handle for mouse-follow
 
     const step = () => {
       if (!posMode) return;
-      // NEW: robust mouse position fallback chain
       const mp =
         (window.a1lib && typeof a1lib.getMousePosition === "function" && a1lib.getMousePosition()) ||
         (window.A1lib && typeof A1lib.getMousePosition === "function" && A1lib.getMousePosition()) ||
         null;
 
       if (mp && Number.isFinite(mp.x) && Number.isFinite(mp.y)) {
-        // Top-left of overlay at mouse pos; simple & predictable
         overlayPos = { x: Math.max(0, Math.floor(mp.x)), y: Math.max(0, Math.floor(mp.y)) };
       }
       posRaf = requestAnimationFrame(step);
@@ -252,11 +250,9 @@ let posRaf = 0;                // NEW: RAF handle for mouse-follow
   }
 
   setPos.addEventListener("click", () => {
-    // CHANGED: clicking again while positioning now SAVES
     if (posMode) { stopPosMode(true); } else { startPosMode(); }
   });
 
-  /* NEW: Alt1 global hotkey — try multiple bind styles */
   const bindAlt1 = (handler) => {
     try {
       if (window.a1lib && typeof a1lib.on === "function") {
@@ -274,7 +270,6 @@ let posRaf = 0;                // NEW: RAF handle for mouse-follow
   };
   const bound = bindAlt1(() => { if (posMode) stopPosMode(true); });
 
-  /* Fallback (for debugging outside RS focus) */
   window.addEventListener("keydown", (e) => {
     if (posMode && e.altKey && (e.code === "Digit1" || e.key === "1")) {
       e.preventDefault();
@@ -312,7 +307,7 @@ function resetUI() {
 
   if (rows[0]) {
     const c0 = rows[0].querySelector("td");
-    if (c0) c0.textContent = "Waiting...";
+    if (c0) c0.textContent = ".";
     rows[0].style.display = "";
     rows[0].classList.remove("role-range", "role-magic", "role-melee", "callout", "flash");
     rows[0].classList.add("selected");
@@ -451,7 +446,66 @@ function fmt(x) { return Math.max(0, x).toFixed(1); }
 
 let snuffStartAt = 0;
 
-/* ==== Added: shared interval builder for snuffed timers ==== */
+/* ==== Barricade timer state ==== */
+let barricadeStartAt = 0;
+let barricadeIv = 0;
+let barricadeClearT = 0;
+
+function stopBarricadeTimer(clearRowToo = true) {
+  if (barricadeIv) {
+    try { clearInterval(barricadeIv); } catch {}
+    barricadeIv = 0;
+  }
+  if (barricadeClearT) {
+    try { clearTimeout(barricadeClearT); } catch {}
+    barricadeClearT = 0;
+  }
+  barricadeStartAt = 0;
+  if (clearRowToo) clearRow(2);   // row 2 used for Barricade
+}
+
+function startBarricadeTimer() {
+  stopBarricadeTimer(false);
+
+  barricadeStartAt = Date.now();
+  setRow(2, "Barricade: 13.0s");
+
+  barricadeIv = setInterval(() => {
+    const elapsed   = (Date.now() - barricadeStartAt) / 1000;
+    const remaining = 13 - elapsed;
+
+    if (remaining <= 0) {
+      setRow(2, "Barricade: 0.0s");
+
+      try { clearInterval(barricadeIv); } catch {}
+      barricadeIv = 0;
+
+      if (barricadeClearT) {
+        try { clearTimeout(barricadeClearT); } catch {}
+      }
+
+      barricadeClearT = setTimeout(() => {
+        clearRow(2);
+        barricadeClearT = 0;
+      }, 5000);
+
+      return;
+    }
+
+    setRow(2, `Barricade: ${fmt(remaining)}s`);
+  }, tickMs);
+}
+/* =============================== */
+
+/* ====== Click-in-only clear helper (for "Take the path toward") ====== */
+function clearClickInTimerOnly() {
+  startSnuffedTimers._clickDisabled = true;
+  clearRow(1);
+  log("⏹ Click in timer cleared on path selection");
+}
+/* ==================================================================== */
+
+/* ==== Shared interval builder for snuffed timers ==== */
 function makeSnuffedInterval() {
   const iv = setInterval(() => {
     const elapsed = (Date.now() - snuffStartAt) / 1000;
@@ -461,8 +515,8 @@ function makeSnuffedInterval() {
     if (swapRemaining <= 0) {
       if (!startSnuffedTimers._swapFrozen) {
         setRow(0, "Swap side: 0.0s");
-        startSnuffedTimers._swapFrozen = true; // no further updates
-        const t = setTimeout(() => { clearRow(0); }, 5000); // stay visible 5s, then remove
+        startSnuffedTimers._swapFrozen = true;
+        const t = setTimeout(() => { clearRow(0); }, 5000);
         activeTimeouts.push(t);
       }
     } else if (!startSnuffedTimers._swapFrozen) {
@@ -471,15 +525,20 @@ function makeSnuffedInterval() {
 
     // --- Click-in (9.0s repeating) ---
     const period = 9.0;
-    let clickRemaining = period - (elapsed % period);
-    if (clickRemaining >= period - 1e-6) clickRemaining = 0;
-    setRow(1, `Click in: ${fmt(clickRemaining)}s`);
+    if (!startSnuffedTimers._clickDisabled) {
+      let clickRemaining = period - (elapsed % period);
+      if (clickRemaining >= period - 1e-6) clickRemaining = 0;
+      setRow(1, `Click in: ${fmt(clickRemaining)}s`);
+    } else {
+      // ensure row is clear once disabled
+      clearRow(1);
+    }
   }, tickMs);
 
   activeIntervals.push(iv);
   return iv;
 }
-/* ========================================================== */
+/* ==================================================== */
 
 function startSnuffedTimers() {
   clearActiveTimers();
@@ -487,6 +546,7 @@ function startSnuffedTimers() {
 
   startSnuffedTimers._swapHideScheduled = false;
   startSnuffedTimers._swapFrozen = false;
+  startSnuffedTimers._clickDisabled = false;
 
   snuffStartAt = Date.now();
 
@@ -506,8 +566,11 @@ function stopSnuffedTimersAndReset() {
 
   startSnuffedTimers._swapHideScheduled = false;
   startSnuffedTimers._swapFrozen = false;
+  startSnuffedTimers._clickDisabled = false;
 
   snuffStartAt = 0;
+
+  stopBarricadeTimer(true);
 
   lastDisplayAt = 0;
   [0, 1, 2].forEach(clearRow);
@@ -517,12 +580,24 @@ function stopSnuffedTimersAndReset() {
 let lastSig = "";
 let lastAt = 0;
 
-/* ==== Added: colored, auto-clearing solo messages ==== */
+/* ===== Hard session reset helper ===== */
+function hardResetSession() {
+  log("🔄 Session welcome detected — full reset");
+
+  seenLineIds.clear();
+  seenLineQueue.length = 0;
+  lastSig = "";
+  lastAt = 0;
+
+  stopSnuffedTimersAndReset();
+}
+/* ==================================== */
+
+/* ==== Colored, auto-clearing solo messages ==== */
 function showSolo(role, cls) {
   const rows = document.querySelectorAll("#spec tr");
   if (!rows.length) return;
 
-  // clear all rows
   for (let i = 0; i < rows.length; i++) {
     rows[i].classList.remove("role-range","role-magic","role-melee","callout","flash","selected");
     const c = rows[i].querySelector("td");
@@ -530,7 +605,6 @@ function showSolo(role, cls) {
     rows[i].style.display = "none";
   }
 
-  // show on row 0 with color
   const row = rows[0];
   if (row) {
     const cell = row.querySelector("td");
@@ -539,19 +613,14 @@ function showSolo(role, cls) {
     row.classList.add("selected","callout","flash",cls);
   }
 
-  // remove after 4 seconds
   const t = setTimeout(() => { clearRow(0); }, 4000);
   activeTimeouts.push(t);
 }
 /* ======================================================= */
 
 function onAmascutLine(full, lineId) {
-  // (remove the early seenLineIds block here)
-
-  // Hard reset on session message
   if (/welcome to your session/i.test(full)) {
-    log("🔄 Session welcome detected — full reset");
-    stopSnuffedTimersAndReset();
+    hardResetSession();
     return;
   }
 
@@ -569,13 +638,13 @@ function onAmascutLine(full, lineId) {
   else if (raw.includes("Pathetic")) key = "pathetic";
   else if (low.includes("tear them apart")) key = "tear";
   else if (low.includes("bend the knee")) key = "bend";
+  else if (raw.includes("Tumeken's heart")) key = "tumeken";
   else if (raw.includes("Crondis... It should have never come to this")) key = "crondis";
   else if (raw.includes("I'm sorry, Apmeken")) key = "apmeken";
   else if (raw.includes("Forgive me, Het")) key = "het";
   else if (/Scabaras\.\.\.(?!\s*Het\.\.\.\s*Bear witness!?)/i.test(raw)) key = "scabaras";
   if (!key) return;
 
-  // Only dedupe with seenLineIds for NON-snuffed lines
   if (key !== "snuffed" && lineId) {
     if (seenLineIds.has(lineId)) return;
     seenLineIds.add(lineId);
@@ -624,13 +693,15 @@ function onAmascutLine(full, lineId) {
   } else if (key === "scabaras") {
     showMessage("Scabaras (NE)");
   } else if (key === "soloWeakMagic") {
-    showSolo("Magic", "role-magic");   // blue
+    showSolo("Magic", "role-magic");
   } else if (key === "soloMelee") {
-    showSolo("Melee", "role-melee");   // red
+    showSolo("Melee", "role-melee");
   } else if (key === "soloRange") {
-    showSolo("Range", "role-range");   // green
+    showSolo("Range", "role-range");
+  } else if (key === "tumeken") {
+    log("💙 Tumeken's heart — starting Barricade timer");
+    startBarricadeTimer();
   } else {
-    // weak / grovel / pathetic — same behavior
     updateUI(key);
   }
 }
@@ -643,6 +714,20 @@ function readChatbox() {
 
   for (let i = 0; i < segs.length; i++) {
     const seg = segs[i];
+
+    if (seg && typeof seg.text === "string") {
+      if (/welcome to your session/i.test(seg.text)) {
+        hardResetSession();
+        continue;
+      }
+
+      // NEW: clear Click-in when path is chosen
+      if (/take the path toward/i.test(seg.text)) {
+        clearClickInTimerOnly();
+        continue;
+      }
+    }
+
     if (!seg.fragments || seg.fragments.length === 0) continue;
 
     const hasNameColor = seg.fragments.some(f => isColorNear(f.color, NAME_RGB));
@@ -685,7 +770,6 @@ setTimeout(() => {
         showSelected(reader.pos);
         setInterval(readChatbox, 250);
 
-        // start overlay when ready
         try { startOverlay(); } catch (e) { console.error(e); }
       }
     } catch (e) {
@@ -726,7 +810,6 @@ function centerFor(canvas) {
   };
 }
 
-/* Use saved position if available; otherwise center */
 function positionFor(canvas) {
   if (overlayPos && Number.isFinite(overlayPos.x) && Number.isFinite(overlayPos.y)) {
     return { x: Math.max(0, Math.floor(overlayPos.x)), y: Math.max(0, Math.floor(overlayPos.y)) };
@@ -749,7 +832,6 @@ function scheduleNext(cb) {
   }, overlayCtl.refreshRate);
 }
 
-// helper: a1lib/A1lib encoder (handles either global)
 function encodeImage(imgData) {
   const enc = (window.a1lib && a1lib.encodeImageString) || (window.A1lib && A1lib.encodeImageString);
   if (!enc) throw new Error("encodeImageString not found on a1lib/A1lib");
@@ -761,7 +843,6 @@ function gatherSpecLines() {
   const rows = document.querySelectorAll("#spec tr");
   const lines = [];
 
-  // While positioning, force a visible label so you can see it move
   if (posMode) {
     lines.push({ text: "Positioning...", color: "#FFFFFF" });
     return lines;
@@ -774,9 +855,9 @@ function gatherSpecLines() {
     if (!text) return;
 
     let color = "#FFFFFF";
-    if (row.classList.contains("role-range")) color = "#1fb34f"; // green
-    else if (row.classList.contains("role-magic")) color = "#3a67ff"; // blue
-    else if (row.classList.contains("role-melee")) color = "#e13b3b"; // red
+    if (row.classList.contains("role-range")) color = "#1fb34f";
+    else if (row.classList.contains("role-magic")) color = "#3a67ff";
+    else if (row.classList.contains("role-melee")) color = "#e13b3b";
 
     lines.push({ text, color });
   });
@@ -785,13 +866,11 @@ function gatherSpecLines() {
 
 function renderLinesToCanvas(lines) {
   const { w: rw } = getRsClientSize();
-  // scale influenced by panel slider
   const baseSize = Math.round(Math.min(64, Math.max(28, rw * 0.045)));
   const fontSize = Math.max(14, Math.round(baseSize * overlayScale));
   const pad = 12;
   const gap = 6;
 
-  // measure
   const m = document.createElement("canvas");
   const mctx = m.getContext("2d");
   mctx.font = `bold ${fontSize}px system-ui, -apple-system, Segoe UI, Arial, sans-serif`;
@@ -835,7 +914,7 @@ async function updateOverlayOnce() {
   try {
     if (!window.alt1) { scheduleNext(updateOverlayOnce); return; }
 
-    if (!overlayEnabled) { // obey panel toggle
+    if (!overlayEnabled) {
       clearOverlayGroup();
       scheduleNext(updateOverlayOnce);
       return;
