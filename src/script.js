@@ -20,22 +20,22 @@ if (window.alt1) {
   document.body.innerHTML = `Alt1 not detected, click <a href="alt1://addapp/${url}">here</a> to add this app.`;
 }
 
-// --- REPLACED: old seenLineIds / seenLineQueue ---
+
 const seenLineTimes = new Map();
 
 function shouldIgnoreLine(lineId, windowMs = 5000) {
   const now = Date.now();
   const last = seenLineTimes.get(lineId) ?? 0;
 
-  // Ignore if this exact line was seen very recently
+
   if (now - last < windowMs) return true;
 
-  // Otherwise record it
+
   seenLineTimes.set(lineId, now);
 
-  // Light cleanup if things get big
+
   if (seenLineTimes.size > 400) {
-    const cutoff = now - 10 * 60 * 1000; // 10 minutes
+    const cutoff = now - 10 * 60 * 1000;
     for (const [id, ts] of seenLineTimes) {
       if (ts < cutoff) seenLineTimes.delete(id);
     }
@@ -56,7 +56,7 @@ let overlayScale = Number(localStorage.getItem("amascut.overlayScale") || "1");
 if (!(overlayScale >= 0.25 && overlayScale <= 2.0)) overlayScale = 1;
 let overlayEnabled = (localStorage.getItem("amascut.overlayEnabled") ?? "true") === "true";
 
-/* NEW: persistent overlay position (top-left) */
+
 let overlayPos = null;
 try {
   const stored = JSON.parse(localStorage.getItem("amascut.overlayPos") || "null");
@@ -65,7 +65,7 @@ try {
   }
 } catch {}
 
-/* === Voice-line config (per-line toggles) === */
+
 const VOICE_LINE_LABELS = {
   // Group: solo calls
   soloGroup: "3 hit barrage",
@@ -95,7 +95,7 @@ try {
 } catch {}
 
 function isVoiceLineEnabled(key) {
-  // "A new dawn" is always on, no toggle
+
   if (key === "newdawn") return true;
 
   // Group: Grovel / Weak / Pathetic share one toggle
@@ -116,11 +116,9 @@ function isVoiceLineEnabled(key) {
     return v !== false; // default ON
   }
 
-  // Everything else uses its own key like before
   const v = voiceLineConfig[key];
   return v !== false; // default ON
 }
-
 
 function setVoiceLineEnabled(key, enabled) {
   voiceLineConfig[key] = !!enabled;
@@ -226,14 +224,11 @@ let tickMs = 600; // default 0.6s display tick
 })();
 /* ============================================ */
 
-/* ===== Options POP-OUT window + bottom-right button + Set pos ===== */
-
 /* Global positioning state (used by main window + popup) */
 let posMode = false;
 let posRaf = 0;
 window.amascutOptsWin = null;  // reference to popup (if open)
 
-/* Start following the mouse to set overlay position */
 function startOverlayPosMode() {
   if (posMode) return;
   posMode = true;
@@ -259,7 +254,6 @@ function startOverlayPosMode() {
   posRaf = requestAnimationFrame(step);
 }
 
-/* Stop mouse-follow mode, optionally save & ping popup */
 function stopOverlayPosMode(saveNow = false) {
   if (!posMode) return;
   posMode = false;
@@ -275,7 +269,6 @@ function stopOverlayPosMode(saveNow = false) {
     log(`📍 Overlay position set to ${overlayPos.x}, ${overlayPos.y}`);
   }
 
-  // Tell popup to update its label/button
   if (window.amascutOptsWin && !window.amascutOptsWin.closed) {
     try {
       window.amascutOptsWin.postMessage(
@@ -286,7 +279,6 @@ function stopOverlayPosMode(saveNow = false) {
   }
 }
 
-/* Bind Alt+1 in the main window to “confirm position” */
 (function bindAlt1Global(){
   const bindAlt1 = (handler) => {
     try {
@@ -320,7 +312,6 @@ function stopOverlayPosMode(saveNow = false) {
   });
 })();
 
-/* Create the bottom-right “Options” button and wire up the popup */
 (function injectOptionsPopupButton(){
   const style = document.createElement("style");
   style.textContent = `
@@ -362,9 +353,8 @@ function stopOverlayPosMode(saveNow = false) {
   });
 })();
 
-/* Actually open the separate window and build the UI inside it */
+
 function openOptionsPopup() {
-  // Reuse existing window if still open
   if (window.amascutOptsWin && !window.amascutOptsWin.closed) {
     window.amascutOptsWin.focus();
     return;
@@ -381,7 +371,6 @@ function openOptionsPopup() {
   }
   window.amascutOptsWin = win;
 
-  // Basic HTML skeleton for the popup
   win.document.write(`
 <!DOCTYPE html>
 <html>
@@ -812,7 +801,6 @@ function clearRow(i) {
   const cell = row.querySelector("td");
 
   if (i === 0) {
-    // Baseline row: keep the table alive with a single dot.
     if (cell) cell.textContent = ".";
     row.style.display = "table-row";
     row.classList.remove("callout", "flash", "role-range", "role-magic", "role-melee");
@@ -820,18 +808,15 @@ function clearRow(i) {
     return;
   }
 
-  // Normal behaviour for rows 1, 2, ...
   if (cell) cell.textContent = "";
   row.style.display = "none";
   row.classList.remove("selected", "callout", "flash", "role-range", "role-magic", "role-melee");
 }
 
-/* format with one decimal (e.g., 14.4 → 14.4, 0.05 → 0.0) */
 function fmt(x) { return Math.max(0, x).toFixed(1); }
 
 let snuffStartAt = 0;
 
-/* ==== Barricade timer state ==== */
 let barricadeStartAt = 0;
 let barricadeIv = 0;
 let barricadeClearT = 0;
@@ -846,7 +831,7 @@ function stopBarricadeTimer(clearRowToo = true) {
     barricadeClearT = 0;
   }
   barricadeStartAt = 0;
-  if (clearRowToo) clearRow(2);   // row 2 used for Barricade
+  if (clearRowToo) clearRow(2);
 }
 
 function startBarricadeTimer() {
@@ -880,9 +865,7 @@ function startBarricadeTimer() {
     setRow(2, `Barricade: ${fmt(remaining)}s`);
   }, tickMs);
 }
-/* =============================== */
 
-/* ==== D2H timer state ==== */
 let d2hStartAt = 0;
 let d2hIv = 0;
 let d2hClearT = 0;
@@ -897,7 +880,7 @@ function stopD2HTimer(clearRowToo = true) {
     d2hClearT = 0;
   }
   d2hStartAt = 0;
-  if (clearRowToo) clearRow(2);   // reuse row 2
+  if (clearRowToo) clearRow(2);
 }
 
 function startD2HTimer() {
@@ -931,15 +914,12 @@ function startD2HTimer() {
     setRow(2, `D2H in: ${fmt(remaining)}s`);
   }, tickMs);
 }
-/* ========================== */
 
-/* ====== Click-in-only clear helper (for "Take the path toward") ====== */
 function clearClickInTimerOnly() {
   startSnuffedTimers._clickDisabled = true;
   clearRow(1);
   log("⏹ Click in timer cleared on path selection");
 }
-/* ==================================================================== */
 
 /* ==== Shared interval builder for snuffed timers ==== */
 function makeSnuffedInterval() {
@@ -947,7 +927,7 @@ function makeSnuffedInterval() {
     try {
       const elapsed = (Date.now() - snuffStartAt) / 1000;
 
-      // --- Swap (14.4s one-shot) ---
+      // --- Swap (14.4s) ---
       const swapRemaining = 14.4 - elapsed;
       if (swapRemaining <= 0) {
         if (!startSnuffedTimers._swapFrozen) {
@@ -967,7 +947,6 @@ function makeSnuffedInterval() {
         if (clickRemaining >= period - 1e-6) clickRemaining = 0;
         setRow(1, `Click in: ${fmt(clickRemaining)}s`);
       } else {
-        // ensure row is clear once disabled
         clearRow(1);
       }
     } catch (e) {
@@ -978,7 +957,6 @@ function makeSnuffedInterval() {
   activeIntervals.push(iv);
   return iv;
 }
-/* ==================================================== */
 
 function startSnuffedTimers() {
   clearActiveTimers();
@@ -1034,7 +1012,6 @@ function hardResetSession() {
 }
 /* ==================================== */
 
-/* ==== Colored, auto-clearing solo messages ==== */
 function showSolo(role, cls) {
   const rows = document.querySelectorAll("#spec tr");
   if (!rows.length) return;
@@ -1057,7 +1034,6 @@ function showSolo(role, cls) {
   const t = setTimeout(() => { clearRow(0); }, 4000);
   activeTimeouts.push(t);
 }
-/* ======================================================= */
 
 function onAmascutLine(full, lineId) {
   if (/welcome to your session/i.test(full)) {
@@ -1088,13 +1064,11 @@ function onAmascutLine(full, lineId) {
 
   if (!key) return;
 
-  // honour toggles for everything EXCEPT d2h (handled specially below)
   if (key !== "d2h" && !isVoiceLineEnabled(key)) {
     log("🔇 Suppressed voice line: " + key);
     return;
   }
 
-  // time-window dedupe
   if (key !== "snuffed" && lineId) {
     if (shouldIgnoreLine(lineId, 5000)) return;
   }
@@ -1107,7 +1081,6 @@ function onAmascutLine(full, lineId) {
     lastAt = now;
   }
 
-  // behaviour per key
   if (key === "snuffed") {
     if (snuffStartAt) {
       log("⚡ Snuffed out already active — ignoring duplicate");
@@ -1147,7 +1120,6 @@ function onAmascutLine(full, lineId) {
     log("💙 Tumeken's heart — starting Barricade timer");
     startBarricadeTimer();
   } else if (key === "d2h") {
-    // Two independent toggles:
     const d2hTimerOn = isVoiceLineEnabled("d2h");    // P6 D2H Timer
     const d2hAoeOn   = isVoiceLineEnabled("d2hAoE"); // P6 AoE reminder
 
@@ -1166,7 +1138,6 @@ function onAmascutLine(full, lineId) {
       }
     }
 
-    // always disable click-in timer for this wave
     startSnuffedTimers._clickDisabled = true;
     const rows = document.querySelectorAll("#spec tr");
     if (rows[1]) {
@@ -1174,12 +1145,9 @@ function onAmascutLine(full, lineId) {
       if (cell) cell.textContent = "";
     }
   } else {
-    // grovel / weak / pathetic and anything else that maps to RESPONSES
     updateUI(key);
   }
 }
-
-//* --- *//
 
 function readChatbox() {
   let segs = [];
@@ -1190,8 +1158,6 @@ function readChatbox() {
     return;
   }
 
-  // How many empty reads before we refind the chatbox?
-  // 4 * 250ms ≈ 1s max delay instead of ~10s.
   const EMPTY_REFIND_THRESHOLD = 4;
 
   if (!segs.length) {
@@ -1204,7 +1170,7 @@ function readChatbox() {
     if (emptyReadCount >= EMPTY_REFIND_THRESHOLD) {
       try {
         log("🔁 No chat text for a bit, re-finding chatbox...");
-        reader.pos = null;   // force a fresh search
+        reader.pos = null;
         reader.find();
 
         if (reader.pos && reader.pos.mainbox && reader.pos.mainbox.rect) {
@@ -1221,7 +1187,6 @@ function readChatbox() {
     return;
   }
 
-  // We saw text again, reset the counter
   emptyReadCount = 0;
 
   for (let i = 0; i < segs.length; i++) {
@@ -1233,7 +1198,6 @@ function readChatbox() {
         continue;
       }
 
-      // Clear Click-in when path is chosen
       if (/take the path toward/i.test(seg.text)) {
         clearClickInTimerOnly();
         continue;
