@@ -19,8 +19,29 @@ if (window.alt1) {
   document.body.innerHTML = `Alt1 not detected, click <a href="alt1://addapp/${url}">here</a> to add this app.`;
 }
 
-const seenLineIds = new Set();
-const seenLineQueue = [];
+// --- REPLACED: old seenLineIds / seenLineQueue ---
+const seenLineTimes = new Map();
+
+function shouldIgnoreLine(lineId, windowMs = 5000) {
+  const now = Date.now();
+  const last = seenLineTimes.get(lineId) ?? 0;
+
+  // Ignore if this exact line was seen very recently
+  if (now - last < windowMs) return true;
+
+  // Otherwise record it
+  seenLineTimes.set(lineId, now);
+
+  // Light cleanup if things get big
+  if (seenLineTimes.size > 400) {
+    const cutoff = now - 10 * 60 * 1000; // 10 minutes
+    for (const [id, ts] of seenLineTimes) {
+      if (ts < cutoff) seenLineTimes.delete(id);
+    }
+  }
+  return false;
+}
+// -------------------------------------------------
 
 let resetTimerId = null;
 let lastDisplayAt = 0; // for 10s window used by generic showMessage/updateUI
@@ -42,6 +63,105 @@ try {
     overlayPos = { x: stored.x, y: stored.y };
   }
 } catch {}
+
+/* === Voice-line config (per-line toggles) === */
+const VOICE_LINE_LABELS = {
+  // Group: solo calls
+  soloGroup: "3 hit barrage",
+
+  // Group: spec order lines
+  specGroup: "3 multi hit (base only)",
+
+  // Group: P7 calls
+  p7Call: "P7 Call",
+
+  snuffed: "Swap timer + click timer",
+  tear: "Scarabs",
+  bend: "Bend the Knee",
+  tumeken: "P5 Barricade Timer",
+  d2h: "P6 D2H Timer",
+  d2hAoE: "P6 AoE reminder",
+};
+
+
+let voiceLineConfig = {};
+try {
+  const raw = localStorage.getItem("amascut.voiceLineConfig");
+  if (raw) {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object") voiceLineConfig = parsed;
+  }
+} catch {}
+
+function isVoiceLineEnabled(key) {
+  // "A new dawn" is always on, no toggle
+  if (key === "newdawn") return true;
+
+  // Group: Grovel / Weak / Pathetic share one toggle
+  if (key === "grovel" || key === "weak" || key === "pathetic") {
+    const v = voiceLineConfig["specGroup"];
+    return v !== false; // default ON
+  }
+
+  // Group: solo calls share one toggle
+  if (key === "soloWeakMagic" || key === "soloMelee" || key === "soloRange") {
+    const v = voiceLineConfig["soloGroup"];
+    return v !== false; // default ON
+  }
+
+  // Group: P7 calls share one toggle
+  if (key === "crondis" || key === "apmeken" || key === "het" || key === "scabaras") {
+    const v = voiceLineConfig["p7Call"];
+    return v !== false; // default ON
+  }
+
+  // Everything else uses its own key like before
+  const v = voiceLineConfig[key];
+  return v !== false; // default ON
+}
+
+
+function setVoiceLineEnabled(key, enabled) {
+  voiceLineConfig[key] = !!enabled;
+  try { localStorage.setItem("amascut.voiceLineConfig", JSON.stringify(voiceLineConfig)); } catch {}
+}
+
+/* === Exposed helpers for the popup === */
+window.amascutGetState = function () {
+  return {
+    overlayScale,
+    overlayEnabled,
+    overlayPos,
+    posMode,
+  };
+};
+
+window.amascutSetOverlayScale = function (v) {
+  overlayScale = v;
+  try { localStorage.setItem("amascut.overlayScale", String(v)); } catch {}
+};
+
+window.amascutSetOverlayEnabled = function (enabled) {
+  overlayEnabled = !!enabled;
+  try { localStorage.setItem("amascut.overlayEnabled", String(overlayEnabled)); } catch {}
+  if (!overlayEnabled) clearOverlayGroup();
+};
+
+window.amascutIsPosMode = function () {
+  return posMode;
+};
+
+window.amascutGetVoiceMeta = function () {
+  return {
+    config: voiceLineConfig,
+    labels: VOICE_LINE_LABELS,
+  };
+};
+
+window.amascutSetVoiceEnabled = function (key, enabled) {
+  setVoiceLineEnabled(key, enabled);
+};
+/* ------------------------------------- */
 
 /* ---------- Logs toggle ---------- */
 (function injectLogsToggle(){
@@ -105,154 +225,68 @@ let tickMs = 600; // default 0.6s display tick
 })();
 /* ============================================ */
 
-/* ===== Options panel (bottom-right) + minimise button + Set pos ===== */
-let posMode = false;           // NEW: positioning mode flag
-let posRaf = 0;                // NEW: RAF handle for mouse-follow
-(function injectOptionsPanel(){
-  const style = document.createElement("style");
-  style.textContent = `
-    .ah-panel{position:fixed;right:12px;bottom:12px;z-index:11050;min-width:260px;
-      background:#1b1f24cc;border:1px solid #444;border-radius:8px;padding:10px 10px 8px 10px;
-      box-shadow:0 6px 16px #000a;font-family:rs-pro-3;color:#ddd}
-    .ah-panel h4{margin:0 0 8px 0;font-size:14px;color:#fff;position:relative;padding-right:60px}
-    .ah-min-btn{position:absolute;right:0;top:-2px;font-size:12px;padding:4px 8px;border:1px solid #555;
-      background:#222;color:#ddd;border-radius:4px;cursor:pointer}
-    .ah-row{display:flex;align-items:center;gap:8px;margin:6px 0}
-    .ah-row label{font-size:12px;min-width:110px}
-    .ah-row input[type="range"]{flex:1}
-    .ah-buttons{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
-    .ah-buttons > *{position:static !important; font-size:12px; line-height:1; padding:4px 8px; margin:0; color:#fff}
-    .ah-mini{position:fixed;right:12px;bottom:12px;z-index:11051;background:#1b1f24;
-      border:1px solid #444;border-radius:999px;padding:8px 12px;box-shadow:0 6px 16px #000a;
-      color:#ddd;font-family:rs-pro-3;cursor:pointer;display:none;user-select:none}
-    .ah-small{font-size:11px; opacity:.8}
-    .ah-simple-btn{border:1px solid #444;background:#222;border-radius:4px;cursor:pointer}
-  `;
-  document.head.appendChild(style);
+/* ===== Options POP-OUT window + bottom-right button + Set pos ===== */
 
-  const panel = document.createElement("div");
-  panel.className = "ah-panel";
-  panel.innerHTML = `
-    <h4>
-      Amascut Helper – Options
-      <button id="ah-panel-min" class="ah-min-btn" title="Minimise">Minimise</button>
-    </h4>
-    <div class="ah-row">
-      <label for="ah-size">Overlay size</label>
-      <input id="ah-size" type="range" min="0.25" max="2" step="0.05">
-      <span id="ah-size-val" style="width:48px;text-align:right;">1.00×</span>
-    </div>
-    <div class="ah-row">
-      <label for="ah-enable">Overlay</label>
-      <input id="ah-enable" type="checkbox">
-      <span id="ah-enable-state"></span>
-    </div>
-    <div class="ah-buttons" id="ah-extra-btns"></div>
-    <div class="ah-row"><span id="ah-pos-val" class="ah-small"></span></div>
-  `;
-  document.body.appendChild(panel);
+/* Global positioning state (used by main window + popup) */
+let posMode = false;
+let posRaf = 0;
+window.amascutOptsWin = null;  // reference to popup (if open)
 
-  const mini = document.createElement("div");
-  mini.className = "ah-mini";
-  mini.id = "ah-panel-mini";
-  mini.textContent = "⚙";
-  document.body.appendChild(mini);
+/* Start following the mouse to set overlay position */
+function startOverlayPosMode() {
+  if (posMode) return;
+  posMode = true;
 
-  let panelMin = (localStorage.getItem("amascut.panelMin") ?? "false") === "true";
-  function setPanelMin(min){
-    panelMin = !!min;
-    panel.style.display = panelMin ? "none" : "block";
-    mini.style.display = panelMin ? "block" : "none";
-    try { localStorage.setItem("amascut.panelMin", String(panelMin)); } catch {}
-  }
-  panel.querySelector("#ah-panel-min").addEventListener("click", () => setPanelMin(true));
-  mini.addEventListener("click", () => setPanelMin(false));
-  setPanelMin(panelMin);
+  try { alt1 && alt1.setTooltip && alt1.setTooltip("Press Alt+1 to save overlay position!"); } catch {}
 
-  const size = panel.querySelector("#ah-size");
-  const sizeVal = panel.querySelector("#ah-size-val");
-  size.value = String(overlayScale);
-  sizeVal.textContent = `${Number(overlayScale).toFixed(2)}×`;
-  size.addEventListener("input", () => {
-    overlayScale = Number(size.value);
-    sizeVal.textContent = `${overlayScale.toFixed(2)}×`;
-    try { localStorage.setItem("amascut.overlayScale", String(overlayScale)); } catch {}
-  });
+  const step = () => {
+    if (!posMode) return;
 
-  const cb = panel.querySelector("#ah-enable");
-  const state = panel.querySelector("#ah-enable-state");
-  const refreshEnableText = () => state.textContent = overlayEnabled ? "On" : "Off";
-  cb.checked = overlayEnabled;
-  refreshEnableText();
-  cb.addEventListener("change", () => {
-    overlayEnabled = cb.checked;
-    try { localStorage.setItem("amascut.overlayEnabled", String(overlayEnabled)); } catch {}
-    refreshEnableText();
-    if (!overlayEnabled) clearOverlayGroup();
-  });
+    const mp =
+      (window.a1lib && typeof a1lib.getMousePosition === "function" && a1lib.getMousePosition()) ||
+      (window.A1lib && typeof A1lib.getMousePosition === "function" && A1lib.getMousePosition()) ||
+      null;
 
-  const posVal = panel.querySelector("#ah-pos-val");
-  const updatePosLabel = () => {
-    if (overlayPos) posVal.textContent = `Position: (${overlayPos.x}, ${overlayPos.y})`;
-    else posVal.textContent = `Position: centered`;
-  };
-  updatePosLabel();
-
-  const extra = panel.querySelector("#ah-extra-btns");
-  const tickBtn = document.getElementById("ah-tick-toggle");
-  const logsBtn = document.getElementById("ah-logs-toggle");
-  [tickBtn, logsBtn].forEach(btn => {
-    if (!btn) return;
-    btn.style.position = "static";
-    btn.style.margin = "0";
-    extra.appendChild(btn);
-  });
-
-  /* NEW: “Set pos” mini button (starts pos mode; save with Alt+1 or click again) */
-  const setPos = document.createElement("button");
-  setPos.textContent = "Setting… (Alt+1)"; // initial text toggled below
-  setPos.className = "ah-simple-btn";
-  setPos.style.color = "#fff";
-  extra.appendChild(setPos);
-  setPos.textContent = "Set pos"; // finalize default
-
-  function stopPosMode(saveNow = false){
-    posMode = false;
-    setPos.textContent = "Set pos";
-    try { alt1 && alt1.clearTooltip && alt1.clearTooltip(); } catch {}
-    if (posRaf) cancelAnimationFrame(posRaf), posRaf = 0;
-    if (saveNow && overlayPos) {
-      localStorage.setItem("amascut.overlayPos", JSON.stringify(overlayPos));
-      updatePosLabel();
-      log(`📍 Overlay position set to ${overlayPos.x}, ${overlayPos.y}`);
+    if (mp && Number.isFinite(mp.x) && Number.isFinite(mp.y)) {
+      overlayPos = {
+        x: Math.max(0, Math.floor(mp.x)),
+        y: Math.max(0, Math.floor(mp.y)),
+      };
     }
-  }
-
-  function startPosMode(){
-    if (posMode) return;
-    posMode = true;
-    setPos.textContent = "Setting… (Alt+1)";
-    try { alt1 && alt1.setTooltip && alt1.setTooltip("Press Alt+1 to save overlay position!"); } catch {}
-
-    const step = () => {
-      if (!posMode) return;
-      const mp =
-        (window.a1lib && typeof a1lib.getMousePosition === "function" && a1lib.getMousePosition()) ||
-        (window.A1lib && typeof A1lib.getMousePosition === "function" && A1lib.getMousePosition()) ||
-        null;
-
-      if (mp && Number.isFinite(mp.x) && Number.isFinite(mp.y)) {
-        overlayPos = { x: Math.max(0, Math.floor(mp.x)), y: Math.max(0, Math.floor(mp.y)) };
-      }
-      posRaf = requestAnimationFrame(step);
-    };
     posRaf = requestAnimationFrame(step);
+  };
+  posRaf = requestAnimationFrame(step);
+}
+
+/* Stop mouse-follow mode, optionally save & ping popup */
+function stopOverlayPosMode(saveNow = false) {
+  if (!posMode) return;
+  posMode = false;
+
+  try { alt1 && alt1.clearTooltip && alt1.clearTooltip(); } catch {}
+  if (posRaf) {
+    cancelAnimationFrame(posRaf);
+    posRaf = 0;
   }
 
-  setPos.addEventListener("click", () => {
-    if (posMode) { stopPosMode(true); } else { startPosMode(); }
-  });
+  if (saveNow && overlayPos) {
+    try { localStorage.setItem("amascut.overlayPos", JSON.stringify(overlayPos)); } catch {}
+    log(`📍 Overlay position set to ${overlayPos.x}, ${overlayPos.y}`);
+  }
 
+  // Tell popup to update its label/button
+  if (window.amascutOptsWin && !window.amascutOptsWin.closed) {
+    try {
+      window.amascutOptsWin.postMessage(
+        { source: "amascutParent", type: "posSaved", pos: overlayPos },
+        "*"
+      );
+    } catch {}
+  }
+}
+
+/* Bind Alt+1 in the main window to “confirm position” */
+(function bindAlt1Global(){
   const bindAlt1 = (handler) => {
     try {
       if (window.a1lib && typeof a1lib.on === "function") {
@@ -268,19 +302,357 @@ let posRaf = 0;                // NEW: RAF handle for mouse-follow
     } catch {}
     return false;
   };
-  const bound = bindAlt1(() => { if (posMode) stopPosMode(true); });
+
+  const ok = bindAlt1(() => {
+    if (posMode) stopOverlayPosMode(true);
+  });
+
+  if (!ok) {
+    log("ℹ️ Alt+1 binding via a1lib.on not available; use Set pos button instead.");
+  }
 
   window.addEventListener("keydown", (e) => {
     if (posMode && e.altKey && (e.code === "Digit1" || e.key === "1")) {
       e.preventDefault();
-      stopPosMode(true);
+      stopOverlayPosMode(true);
     }
   });
-
-  if (!bound) {
-    log("ℹ️ Alt+1 binding via a1lib.on not available; click Set pos again to save.");
-  }
 })();
+
+/* Create the bottom-right “Options” button and wire up the popup */
+(function injectOptionsPopupButton(){
+  const style = document.createElement("style");
+  style.textContent = `
+    .ah-mini{
+      position:fixed;
+      right:12px;
+      bottom:12px;
+      z-index:11051;
+      background:#1b1f24;
+      border:1px solid #444;
+      border-radius:999px;
+      padding:8px 12px;
+      box-shadow:0 6px 16px #000a;
+      color:#ddd;
+      font-family:rs-pro-3;
+      cursor:pointer;
+      user-select:none;
+      display:flex;
+      align-items:center;
+      gap:4px;
+      font-size:13px;
+    }
+    .ah-mini span{
+      opacity:.8;
+      font-size:11px;
+    }
+  `;
+  document.head.appendChild(style);
+
+  const mini = document.createElement("div");
+  mini.className = "ah-mini";
+  mini.id = "ah-panel-mini";
+  mini.innerHTML = `⚙ <span>Options</span>`;
+  document.body.appendChild(mini);
+
+  mini.addEventListener("click", (e) => {
+    e.stopPropagation();
+    openOptionsPopup();
+  });
+})();
+
+/* Actually open the separate window and build the UI inside it */
+function openOptionsPopup() {
+  // Reuse existing window if still open
+  if (window.amascutOptsWin && !window.amascutOptsWin.closed) {
+    window.amascutOptsWin.focus();
+    return;
+  }
+
+  const win = window.open(
+    "",
+    "AmascutOptions",
+    "width=420,height=420,resizable=yes"
+  );
+  if (!win) {
+    log("⚠️ Failed to open options popup (blocked by browser?).");
+    return;
+  }
+  window.amascutOptsWin = win;
+
+  // Basic HTML skeleton for the popup
+  win.document.write(`
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Amascut Helper – Options</title>
+<style>
+  body{
+    margin:8px;
+    background:#1b1f24;
+    color:#ddd;
+    font-family:rs-pro-3, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+  }
+  h4{
+    margin:0 0 8px 0;
+    font-size:14px;
+    color:#fff;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+  }
+  button{
+    font-size:12px;
+  }
+  .row{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin:6px 0;
+  }
+  .row label{
+    font-size:12px;
+    min-width:110px;
+  }
+  .row input[type="range"]{
+    flex:1;
+  }
+  .small{
+    font-size:11px;
+    opacity:.8;
+  }
+  .btn{
+    border:1px solid #444;
+    background:#222;
+    color:#fff;
+    border-radius:4px;
+    padding:4px 8px;
+    cursor:pointer;
+  }
+  .btn-row{
+    display:flex;
+    gap:6px;
+    flex-wrap:wrap;
+    margin-top:6px;
+  }
+  .voice-grid{
+    margin-top:4px;
+    display:flex;
+    flex-direction:column;
+    gap:2px;
+    max-height:200px;
+    overflow-y:auto;
+    border:1px solid #333;
+    padding:4px;
+    border-radius:4px;
+  }
+  .voice-item{
+    display:flex;
+    align-items:center;
+    gap:4px;
+    font-size:11px;
+  }
+</style>
+</head>
+<body>
+  <h4>
+    Amascut Helper – Options
+    <button id="opt-close" class="btn">Close</button>
+  </h4>
+
+  <div class="row">
+    <label for="opt-size">Overlay size</label>
+    <input id="opt-size" type="range" min="0.25" max="2" step="0.05">
+    <span id="opt-size-val" style="width:48px;text-align:right;">1.00×</span>
+  </div>
+
+  <div class="row">
+    <label for="opt-enable">Overlay</label>
+    <input id="opt-enable" type="checkbox">
+    <span id="opt-enable-state"></span>
+  </div>
+
+  <div class="btn-row">
+    <button id="opt-set-pos" class="btn">Set pos</button>
+  </div>
+
+  <div class="row">
+    <span id="opt-pos-val" class="small"></span>
+  </div>
+
+  <hr style="margin:8px 0;border-color:#333;">
+
+  <div class="small">Voice line filters (uncheck to ignore):</div>
+  <div id="opt-voice-list" class="voice-grid"></div>
+
+  <script>
+    (function(){
+      const parent = window.opener;
+      if (!parent) {
+        document.body.innerHTML = "<p>Parent window not available.</p>";
+        return;
+      }
+
+      const size = document.getElementById("opt-size");
+      const sizeVal = document.getElementById("opt-size-val");
+      const enableCb = document.getElementById("opt-enable");
+      const enableState = document.getElementById("opt-enable-state");
+      const setPosBtn = document.getElementById("opt-set-pos");
+      const posVal = document.getElementById("opt-pos-val");
+      const closeBtn = document.getElementById("opt-close");
+      const voiceList = document.getElementById("opt-voice-list");
+
+      function getState() {
+        if (typeof parent.amascutGetState === "function") {
+          return parent.amascutGetState();
+        }
+        return {
+          overlayScale: parent.overlayScale || 1,
+          overlayEnabled: !!parent.overlayEnabled,
+          overlayPos: parent.overlayPos || null,
+          posMode: !!parent.posMode
+        };
+      }
+
+      function buildVoiceList() {
+        if (!voiceList) return;
+        if (voiceList._built) return;
+        voiceList._built = true;
+
+        if (typeof parent.amascutGetVoiceMeta !== "function") return;
+        const meta = parent.amascutGetVoiceMeta() || {};
+        const labels = meta.labels || {};
+        const cfg = meta.config || {};
+
+        Object.keys(labels).forEach(function(key){
+          const label = labels[key];
+          const wrap = document.createElement("label");
+          wrap.className = "voice-item";
+
+          const cb = document.createElement("input");
+          cb.type = "checkbox";
+          cb.setAttribute("data-key", key);
+
+          const enabled = Object.prototype.hasOwnProperty.call(cfg, key) ? cfg[key] !== false : true;
+          cb.checked = enabled;
+
+          const span = document.createElement("span");
+          span.textContent = label;
+
+          wrap.appendChild(cb);
+          wrap.appendChild(span);
+          voiceList.appendChild(wrap);
+
+          cb.addEventListener("change", function(){
+            if (typeof parent.amascutSetVoiceEnabled === "function") {
+              parent.amascutSetVoiceEnabled(key, cb.checked);
+            }
+          });
+        });
+      }
+
+      function refreshFromParent(){
+        const st = getState();
+
+        size.value = String(st.overlayScale || 1);
+        sizeVal.textContent = Number(st.overlayScale || 1).toFixed(2) + "×";
+
+        enableCb.checked = !!st.overlayEnabled;
+        enableState.textContent = st.overlayEnabled ? "On" : "Off";
+
+        const pos = st.overlayPos;
+        if (pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)) {
+          posVal.textContent = "Position: (" + pos.x + ", " + pos.y + ")";
+        } else {
+          posVal.textContent = "Position: centered";
+        }
+
+        setPosBtn.textContent = st.posMode ? "Saving… (Alt+1)" : "Set pos";
+
+        // sync voice checkboxes with latest config
+        if (voiceList && typeof parent.amascutGetVoiceMeta === "function") {
+          const meta = parent.amascutGetVoiceMeta() || {};
+          const cfg = meta.config || {};
+          voiceList.querySelectorAll("input[data-key]").forEach(function(cb){
+            const k = cb.getAttribute("data-key");
+            const enabled = Object.prototype.hasOwnProperty.call(cfg, k) ? cfg[k] !== false : true;
+            cb.checked = enabled;
+          });
+        }
+      }
+
+      buildVoiceList();
+      refreshFromParent();
+
+      // Slider -> real overlayScale via helper
+      size.addEventListener("input", function () {
+        var v = Number(size.value) || 1;
+        if (typeof parent.amascutSetOverlayScale === "function") {
+          parent.amascutSetOverlayScale(v);
+        } else {
+          parent.overlayScale = v;
+          try { parent.localStorage.setItem("amascut.overlayScale", String(v)); } catch (e) {}
+        }
+        sizeVal.textContent = v.toFixed(2) + "×";
+      });
+
+      // Enable checkbox -> real overlayEnabled via helper
+      enableCb.addEventListener("change", function () {
+        var on = enableCb.checked;
+        if (typeof parent.amascutSetOverlayEnabled === "function") {
+          parent.amascutSetOverlayEnabled(on);
+        } else {
+          parent.overlayEnabled = on;
+          try { parent.localStorage.setItem("amascut.overlayEnabled", String(on)); } catch (e) {}
+          if (!on && parent.clearOverlayGroup) parent.clearOverlayGroup();
+        }
+        enableState.textContent = on ? "On" : "Off";
+      });
+
+      // Set pos button: toggle position mode in parent
+      setPosBtn.addEventListener("click", function () {
+        var st = getState();
+        if (!st.posMode) {
+          parent.startOverlayPosMode();
+          setPosBtn.textContent = "Saving… (Alt+1)";
+        } else {
+          parent.stopOverlayPosMode(true);
+          setPosBtn.textContent = "Set pos";
+        }
+      });
+
+      // Close button
+      closeBtn.addEventListener("click", function () {
+        window.close();
+      });
+
+      // Listen for messages from parent (position saved via Alt+1)
+      window.addEventListener("message", function (evt) {
+        var d = evt.data;
+        if (!d || d.source !== "amascutParent") return;
+        if (d.type === "posSaved") {
+          var pos = d.pos;
+          if (pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)) {
+            posVal.textContent = "Position: (" + pos.x + ", " + pos.y + ")";
+          } else {
+            posVal.textContent = "Position: centered";
+          }
+          setPosBtn.textContent = "Set pos";
+        }
+      });
+
+      // Periodic refresh in case parent state changes elsewhere
+      setInterval(refreshFromParent, 1000);
+    })();
+  </script>
+</body>
+</html>
+  `);
+
+  win.document.close();
+}
+
 /* ======================================== */
 
 function clearActiveTimers() {
@@ -435,10 +807,22 @@ function setRow(i, text) {
 function clearRow(i) {
   const rows = document.querySelectorAll("#spec tr");
   if (!rows[i]) return;
-  const cell = rows[i].querySelector("td");
+  const row = rows[i];
+  const cell = row.querySelector("td");
+
+  if (i === 0) {
+    // Baseline row: keep the table alive with a single dot.
+    if (cell) cell.textContent = ".";
+    row.style.display = "table-row";
+    row.classList.remove("callout", "flash", "role-range", "role-magic", "role-melee");
+    row.classList.add("selected");
+    return;
+  }
+
+  // Normal behaviour for rows 1, 2, ...
   if (cell) cell.textContent = "";
-  rows[i].style.display = "none";
-  rows[i].classList.remove("selected", "callout", "flash", "role-range", "role-magic", "role-melee");
+  row.style.display = "none";
+  row.classList.remove("selected", "callout", "flash", "role-range", "role-magic", "role-melee");
 }
 
 /* format with one decimal (e.g., 14.4 → 14.4, 0.05 → 0.0) */
@@ -468,11 +852,11 @@ function startBarricadeTimer() {
   stopBarricadeTimer(false);
 
   barricadeStartAt = Date.now();
-  setRow(2, "Barricade: 13.0s");
+  setRow(2, "Barricade: 13.2s");
 
   barricadeIv = setInterval(() => {
     const elapsed   = (Date.now() - barricadeStartAt) / 1000;
-    const remaining = 13 - elapsed;
+    const remaining = 13.2 - elapsed;
 
     if (remaining <= 0) {
       setRow(2, "Barricade: 0.0s");
@@ -497,6 +881,57 @@ function startBarricadeTimer() {
 }
 /* =============================== */
 
+/* ==== D2H timer state ==== */
+let d2hStartAt = 0;
+let d2hIv = 0;
+let d2hClearT = 0;
+
+function stopD2HTimer(clearRowToo = true) {
+  if (d2hIv) {
+    try { clearInterval(d2hIv); } catch {}
+    d2hIv = 0;
+  }
+  if (d2hClearT) {
+    try { clearTimeout(d2hClearT); } catch {}
+    d2hClearT = 0;
+  }
+  d2hStartAt = 0;
+  if (clearRowToo) clearRow(2);   // reuse row 2
+}
+
+function startD2HTimer() {
+  stopD2HTimer(false);
+
+  d2hStartAt = Date.now();
+  setRow(2, "D2H in: 6.0s");
+
+  d2hIv = setInterval(() => {
+    const elapsed   = (Date.now() - d2hStartAt) / 1000;
+    const remaining = 6.0 - elapsed;
+
+    if (remaining <= 0) {
+      setRow(2, "D2H in: 0.0s");
+
+      try { clearInterval(d2hIv); } catch {}
+      d2hIv = 0;
+
+      if (d2hClearT) {
+        try { clearTimeout(d2hClearT); } catch {}
+      }
+
+      d2hClearT = setTimeout(() => {
+        clearRow(2);
+        d2hClearT = 0;
+      }, 2000);
+
+      return;
+    }
+
+    setRow(2, `D2H in: ${fmt(remaining)}s`);
+  }, tickMs);
+}
+/* ========================== */
+
 /* ====== Click-in-only clear helper (for "Take the path toward") ====== */
 function clearClickInTimerOnly() {
   startSnuffedTimers._clickDisabled = true;
@@ -508,30 +943,34 @@ function clearClickInTimerOnly() {
 /* ==== Shared interval builder for snuffed timers ==== */
 function makeSnuffedInterval() {
   const iv = setInterval(() => {
-    const elapsed = (Date.now() - snuffStartAt) / 1000;
+    try {
+      const elapsed = (Date.now() - snuffStartAt) / 1000;
 
-    // --- Swap (14.4s one-shot) ---
-    const swapRemaining = 14.4 - elapsed;
-    if (swapRemaining <= 0) {
-      if (!startSnuffedTimers._swapFrozen) {
-        setRow(0, "Swap side: 0.0s");
-        startSnuffedTimers._swapFrozen = true;
-        const t = setTimeout(() => { clearRow(0); }, 5000);
-        activeTimeouts.push(t);
+      // --- Swap (14.4s one-shot) ---
+      const swapRemaining = 14.4 - elapsed;
+      if (swapRemaining <= 0) {
+        if (!startSnuffedTimers._swapFrozen) {
+          setRow(0, "Swap side: 0.0s");
+          startSnuffedTimers._swapFrozen = true;
+          const t = setTimeout(() => { clearRow(0); }, 5000);
+          activeTimeouts.push(t);
+        }
+      } else if (!startSnuffedTimers._swapFrozen) {
+        setRow(0, `Swap side: ${fmt(swapRemaining)}s`);
       }
-    } else if (!startSnuffedTimers._swapFrozen) {
-      setRow(0, `Swap side: ${fmt(swapRemaining)}s`);
-    }
 
-    // --- Click-in (9.0s repeating) ---
-    const period = 9.0;
-    if (!startSnuffedTimers._clickDisabled) {
-      let clickRemaining = period - (elapsed % period);
-      if (clickRemaining >= period - 1e-6) clickRemaining = 0;
-      setRow(1, `Click in: ${fmt(clickRemaining)}s`);
-    } else {
-      // ensure row is clear once disabled
-      clearRow(1);
+      // --- Click-in (9.0s repeating) ---
+      const period = 9.0;
+      if (!startSnuffedTimers._clickDisabled) {
+        let clickRemaining = period - (elapsed % period);
+        if (clickRemaining >= period - 1e-6) clickRemaining = 0;
+        setRow(1, `Click in: ${fmt(clickRemaining)}s`);
+      } else {
+        // ensure row is clear once disabled
+        clearRow(1);
+      }
+    } catch (e) {
+      console.error(e);
     }
   }, tickMs);
 
@@ -571,6 +1010,7 @@ function stopSnuffedTimersAndReset() {
   snuffStartAt = 0;
 
   stopBarricadeTimer(true);
+  stopD2HTimer(true);
 
   lastDisplayAt = 0;
   [0, 1, 2].forEach(clearRow);
@@ -579,13 +1019,13 @@ function stopSnuffedTimersAndReset() {
 
 let lastSig = "";
 let lastAt = 0;
+let emptyReadCount = 0;
 
 /* ===== Hard session reset helper ===== */
 function hardResetSession() {
   log("🔄 Session welcome detected — full reset");
 
-  seenLineIds.clear();
-  seenLineQueue.length = 0;
+  seenLineTimes.clear();
   lastSig = "";
   lastAt = 0;
 
@@ -643,16 +1083,19 @@ function onAmascutLine(full, lineId) {
   else if (raw.includes("I'm sorry, Apmeken")) key = "apmeken";
   else if (raw.includes("Forgive me, Het")) key = "het";
   else if (/Scabaras\.\.\.(?!\s*Het\.\.\.\s*Bear witness!?)/i.test(raw)) key = "scabaras";
+  else if (low.includes("i will not be subjugated by a mortal")) key = "d2h";
+
   if (!key) return;
 
+  // honour toggles for everything EXCEPT d2h (handled specially below)
+  if (key !== "d2h" && !isVoiceLineEnabled(key)) {
+    log("🔇 Suppressed voice line: " + key);
+    return;
+  }
+
+  // time-window dedupe
   if (key !== "snuffed" && lineId) {
-    if (seenLineIds.has(lineId)) return;
-    seenLineIds.add(lineId);
-    seenLineQueue.push(lineId);
-    if (seenLineQueue.length > 120) {
-      const old = seenLineQueue.shift();
-      seenLineIds.delete(old);
-    }
+    if (shouldIgnoreLine(lineId, 5000)) return;
   }
 
   const now = Date.now();
@@ -663,6 +1106,7 @@ function onAmascutLine(full, lineId) {
     lastAt = now;
   }
 
+  // behaviour per key
   if (key === "snuffed") {
     if (snuffStartAt) {
       log("⚡ Snuffed out already active — ignoring duplicate");
@@ -701,16 +1145,83 @@ function onAmascutLine(full, lineId) {
   } else if (key === "tumeken") {
     log("💙 Tumeken's heart — starting Barricade timer");
     startBarricadeTimer();
+  } else if (key === "d2h") {
+    // Two independent toggles:
+    const d2hTimerOn = isVoiceLineEnabled("d2h");    // P6 D2H Timer
+    const d2hAoeOn   = isVoiceLineEnabled("d2hAoE"); // P6 AoE reminder
+
+    if (!d2hTimerOn && !d2hAoeOn) {
+      log("🔇 Suppressed D2H effects (timer + AoE reminder)");
+    } else {
+      if (d2hTimerOn) {
+        log("🗡 D2H line — starting D2H timer");
+        startD2HTimer();
+      } else {
+        log("🔇 D2H timer suppressed");
+      }
+
+      if (d2hAoeOn) {
+        showMessage("Threads / Gchain soon");
+      }
+    }
+
+    // always disable click-in timer for this wave
+    startSnuffedTimers._clickDisabled = true;
+    const rows = document.querySelectorAll("#spec tr");
+    if (rows[1]) {
+      const cell = rows[1].querySelector("td");
+      if (cell) cell.textContent = "";
+    }
   } else {
+    // grovel / weak / pathetic and anything else that maps to RESPONSES
     updateUI(key);
   }
 }
 
+//* --- *//
+
 function readChatbox() {
   let segs = [];
-  try { segs = reader.read() || []; }
-  catch (e) { log("⚠️ reader.read() failed; enable Pixel permission in Alt1."); return; }
-  if (!segs.length) return;
+  try {
+    segs = reader.read() || [];
+  } catch (e) {
+    log("⚠️ reader.read() failed; enable Pixel permission in Alt1. Error: " + (e?.message || e));
+    return;
+  }
+
+  // How many empty reads before we refind the chatbox?
+  // 4 * 250ms ≈ 1s max delay instead of ~10s.
+  const EMPTY_REFIND_THRESHOLD = 4;
+
+  if (!segs.length) {
+    emptyReadCount++;
+
+    if (emptyReadCount % 4 === 0) {
+      log("👀 No chat text detected in last " + emptyReadCount + " reads");
+    }
+
+    if (emptyReadCount >= EMPTY_REFIND_THRESHOLD) {
+      try {
+        log("🔁 No chat text for a bit, re-finding chatbox...");
+        reader.pos = null;   // force a fresh search
+        reader.find();
+
+        if (reader.pos && reader.pos.mainbox && reader.pos.mainbox.rect) {
+          log("✅ Chatbox re-found after empty reads");
+          try { showSelected(reader.pos); } catch {}
+        } else {
+          log("⚠️ reader.find() did not return a valid chatbox");
+        }
+      } catch (e) {
+        log("⚠️ reader.find() while recovering failed: " + (e?.message || e));
+      }
+      emptyReadCount = 0;
+    }
+    return;
+  }
+
+  // We saw text again, reset the counter
+  emptyReadCount = 0;
 
   for (let i = 0; i < segs.length; i++) {
     const seg = segs[i];
@@ -721,7 +1232,7 @@ function readChatbox() {
         continue;
       }
 
-      // NEW: clear Click-in when path is chosen
+      // Clear Click-in when path is chosen
       if (/take the path toward/i.test(seg.text)) {
         clearClickInTimerOnly();
         continue;
