@@ -1,5 +1,6 @@
 A1lib.identifyApp("appconfig.json");
 
+
 function log(msg) {
   try {
     console.log(msg);
