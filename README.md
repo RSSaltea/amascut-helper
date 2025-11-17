@@ -1,7 +1,6 @@
 # Amascut Helper by Saltea (credit to Ellam + Duk)
 
-![Amascut Helper Screenshot](./assets/amascut-helper-demo.png)
-![Amascut Helper Settings](./assets/amascut-helper-settings.png)
+![Amascut Helper Screenshot](./assets/amascut-helper-demo-settings.png)
 
 An **Alt1 Toolkit** app to assist with **Hardmode Amascut** mechanics in RuneScape.
 This tool listens to in-game chat for Amascut's special callouts and provides clear, real-time instructions so you can focus on the fight.
