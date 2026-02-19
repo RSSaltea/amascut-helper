@@ -1,4 +1,4 @@
-# Amascut Helper by Saltea (credit to Ellam + Duk)
+# Amascut Helper by Saltea
 
 ![Amascut Helper Screenshot](./assets/amascut-helper-demo-settings.png)
 
@@ -70,6 +70,11 @@ alt1://addapp/https://rssaltea.github.io/amascut-helper/appconfig.json
 * Developed for **Hardmode**.
 * Normal mode may work but is not guaranteed.
 * For issues or suggestions, DM **`.saltea`** on Discord.
+
+---
+
+##  Credit
+* Credit to Duk + Ellam for help for the intial release.
 
 ---
 
