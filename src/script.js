@@ -19,7 +19,7 @@
   (function setVersion() {
     try {
       var el = document.getElementById("ah-version");
-      var tag = document.querySelector('script[src*="script1.js"]');
+      var tag = document.querySelector('script[src*="script.js"]');
       if (el && tag) {
         var m = tag.getAttribute("src").match(/\?v?=?(.+)$/);
         if (m) el.textContent = "v" + m[1];
