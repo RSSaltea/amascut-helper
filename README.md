@@ -1,4 +1,4 @@
-# Amascut Helper by Saltea
+# Amascut Helper
 
 ![Amascut Helper Screenshot](./assets/amascut-helper-demo-settings.png)
 
