@@ -126,8 +126,9 @@ body {
 
 .ah-table td {
   text-align: center;
-  padding: 12px 16px;
-  font-size: 16px;
+  vertical-align: middle;
+  padding: clamp(4px, 2vw, 12px) clamp(6px, 2.5vw, 16px);
+  font-size: clamp(11px, 3vw, 18px);
   font-weight: 600;
   color: #e6edf3;
   border-bottom: 1px solid #21262d;
@@ -143,9 +144,9 @@ body {
 }
 .ah-table tr.ah-status-msg td {
   color: #484f58;
-  font-size: 13px;
+  font-size: clamp(9px, 2.5vw, 14px);
   font-weight: 500;
-  padding: 20px 16px;
+  padding: clamp(8px, 3vw, 20px) clamp(6px, 2.5vw, 16px);
   border-bottom: none;
   letter-spacing: 0.2px;
 }
@@ -301,6 +302,10 @@ body {
 
 body.logs-hidden .ah-logs {
   display: none !important;
+}
+
+body.logs-hidden .ah-table {
+  flex: 1;
 }
 
 
