@@ -2,45 +2,50 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta property="og:title" content="Amascut Helper">
-  <meta property="og:description" content="A helper for Amascut mechanics.">
-  <meta property="og:image" content="https://raw.githubusercontent.com/RSSaltea/amascut-helper/main/assets/amascut-helper-demo-settings.png">
-  <meta property="twitter:card" content="summary_large_image">
-  <title>Amascut Test</title>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <title>Amascut Helper</title>
 
   <script src="https://www.unpkg.com/alt1/dist/base/index.js"></script>
   <script src="https://www.unpkg.com/alt1/dist/ocr/index.js"></script>
   <script src="https://www.unpkg.com/alt1/dist/chatbox/index.js"></script>
 
   <link rel="stylesheet" href="https://runeapps.org/nis/nis.css" />
-  <link rel="stylesheet" href="./src/css/nis.css" />
-  <link rel="stylesheet" href="./src/css/style.css" />
-  <link rel="stylesheet" href="./src/css/tooltipster.bundle.min.css" />
-  <link rel="stylesheet" href="./src/css/tooltipster.css" />
-
-  <style>
-    body { font-family: Arial, sans-serif; color: #fff; background:#121212; }
-    #title { font-size: 24px; margin: 10px 0; text-align: center; }
-    .attacks { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    .attacks tr { background: linear-gradient(#534c44,#271d14,#190e03,#190e03,#241a11); }
-    .attacks td { border: 1px solid #913200; text-align:center; padding:10px; font-size:18px; }
-    #output { margin:8px 0; font-size:11px; opacity:.75; }
-  </style>
+  <link rel="stylesheet" href="./src/css/nis.css?v=5.1" />
+  <link rel="stylesheet" href="./src/css/style.css?v=5.1" />
 </head>
 <body class="nis">
-  <div id="title">Amascut</div>
 
-  <table id="spec" class="attacks">
-    <tbody>
-      <tr id="style1" class="selected"><td>Waiting.</td></tr>
-      <tr id="style2"><td></td></tr>
-      <tr id="style3"><td></td></tr>
-    </tbody>
-  </table>
+  <div class="ah-app">
+    <header class="ah-header">
+      <div class="ah-title">Amascut Helper</div>
+      <div class="ah-version" id="ah-version"></div>
+    </header>
 
-  <div id="output">
-  <!--<div id="output"></div>-->
+    <div class="ah-status" id="ah-status">
+      <span class="ah-status-dot"></span>
+      <span class="ah-status-text" id="ah-status-text">Initializing...</span>
+    </div>
 
-  <script src="./src/script.js"></script>
+    <table id="spec" class="ah-table">
+      <tbody>
+        <tr id="style1"><td></td></tr>
+        <tr id="style2"><td></td></tr>
+        <tr id="style3"><td></td></tr>
+      </tbody>
+    </table>
+
+    <div class="ah-controls">
+      <div class="ah-controls-spacer"></div>
+      <button class="ah-btn ah-btn-primary" id="ah-panel-mini" title="Options">
+        <span class="ah-btn-label">Options</span>
+      </button>
+    </div>
+
+    <div class="ah-logs" id="output"></div>
+  </div>
+
+  <script src="./src/script1.js?v=5.2"></script>
 </body>
 </html>
