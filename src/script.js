@@ -1047,6 +1047,7 @@
     timer: 0,
     refreshRate: 50,
     running: false,
+    isEmpty: true,
   };
 
   function getRsClientSize() {
@@ -1160,14 +1161,14 @@
       if (!window.alt1) { scheduleNext(updateOverlayOnce); return; }
 
       if (!overlayEnabled) {
-        clearOverlayGroup();
+        if (!overlayCtl.isEmpty) { clearOverlayGroup(); overlayCtl.isEmpty = true; }
         scheduleNext(updateOverlayOnce);
         return;
       }
 
       var lines = gatherSpecLines();
       if (!lines.length) {
-        clearOverlayGroup();
+        if (!overlayCtl.isEmpty) { clearOverlayGroup(); overlayCtl.isEmpty = true; }
         scheduleNext(updateOverlayOnce);
         return;
       }
@@ -1178,17 +1179,18 @@
       var pos = positionFor(canvas);
 
       if (img && img.width > 0 && img.height > 0) {
+        overlayCtl.isEmpty = false;
         alt1.overLaySetGroup(overlayCtl.group);
         alt1.overLayFreezeGroup(overlayCtl.group);
         alt1.overLayClearGroup(overlayCtl.group);
         alt1.overLayImage(pos.x, pos.y, encodeImage(img), img.width, overlayCtl.refreshRate);
         alt1.overLayRefreshGroup(overlayCtl.group);
       } else {
-        clearOverlayGroup();
+        if (!overlayCtl.isEmpty) { clearOverlayGroup(); overlayCtl.isEmpty = true; }
       }
     } catch (e) {
       console.error(e);
-      clearOverlayGroup();
+      if (!overlayCtl.isEmpty) { clearOverlayGroup(); overlayCtl.isEmpty = true; }
     }
 
     if (overlayCtl.running) scheduleNext(updateOverlayOnce);
